@@ -376,6 +376,10 @@ input {
   justify-content: center;
 }
 
+.back-link {
+  color: var(--ink);
+}
+
 .primary {
   background: var(--accent);
   color: #fff;

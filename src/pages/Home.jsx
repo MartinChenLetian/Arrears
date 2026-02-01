@@ -174,6 +174,9 @@ export default function Home() {
             <p className="muted search-result">搜索结果：{filteredRecords.length} 条</p>
           )}
           <div className="mode-controls">
+            <a className="ghost back-link" href="/back">
+              后台入口
+            </a>
             <button className="ghost" type="button" onClick={() => setShowProcessed(true)}>
               已处理名单
             </button>
