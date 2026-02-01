@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 
-const HEADER_HINTS = ['户号', '户名', '催费电话', '用电地址', '欠费金额', '本月电费', '电费总和', '用户编号', '用户名称', '用户地址', '合计'];
+const HEADER_HINTS = ['户号', '户名', '催费电话', '用电地址', '欠费金额', '本月电费', '电费总和', '用户编号', '用户名称', '用户地址', '合计', '抄表段号', '段号'];
 
 const HEADER_MAP = {
   户号: 'accountNo',
@@ -14,6 +14,8 @@ const HEADER_MAP = {
   用户名称: 'name',
   用户地址: 'address',
   合计: 'totalFee',
+  抄表段编号: 'meterSegment',
+  段号: 'meterSegment',
 };
 
 function isHeaderRow(row) {
@@ -27,11 +29,12 @@ function normalizeRow(row) {
   return {
     accountNo: safe(row[0]),
     name: safe(row[1]),
-    phone: safe(row[2]),
-    address: safe(row[3]),
-    arrears: safe(row[4]),
-    currentFee: safe(row[5]),
-    totalFee: safe(row[6]),
+    meterSegment: safe(row[2]),
+    phone: safe(row[3]),
+    address: safe(row[4]),
+    arrears: safe(row[5]),
+    currentFee: safe(row[6]),
+    totalFee: safe(row[7]),
   };
 }
 
@@ -40,6 +43,7 @@ function normalizeRowWithHeader(row, headerIndexMap) {
   const record = {
     accountNo: '',
     name: '',
+    meterSegment: '',
     phone: '',
     address: '',
     arrears: '',

@@ -11,6 +11,7 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [showProcessed, setShowProcessed] = useState(false);
   const [processedQuery, setProcessedQuery] = useState('');
+  const [selectedSegment, setSelectedSegment] = useState('EI35全部段号');
 
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -33,16 +34,28 @@ export default function Home() {
   }, [records, activeRecords.length, processedMap, sourceFile]);
 
   const filteredRecords = useMemo(() => {
-    if (!query.trim()) return activeRecords;
+    const segmentFiltered =
+      selectedSegment === 'EI35全部段号'
+        ? activeRecords
+        : activeRecords.filter((record) => record.meterSegment === selectedSegment);
+    if (!query.trim()) return segmentFiltered;
     const term = query.trim();
     const pattern = buildAddressPattern(term);
-    return activeRecords.filter((record) => {
+    return segmentFiltered.filter((record) => {
       if (record.accountNo?.includes(term)) return true;
       if (record.name?.includes(term)) return true;
       if (pattern) return pattern.test(record.address || '');
       return record.address?.includes(term);
     });
-  }, [activeRecords, query]);
+  }, [activeRecords, query, selectedSegment]);
+
+  const segmentOptions = useMemo(() => {
+    const set = new Set();
+    records.forEach((record) => {
+      if (record.meterSegment) set.add(record.meterSegment);
+    });
+    return ['EI35全部段号', ...Array.from(set).sort()];
+  }, [records]);
 
   const processedRecords = useMemo(() => {
     const list = records.filter((record) => processedMap[record.accountNo]);
@@ -155,9 +168,20 @@ export default function Home() {
             <button className="ghost" type="button" onClick={() => setShowProcessed(true)}>
               已处理名单
             </button>
-          <input
-            className="search"
-            type="search"
+            <select
+              className="segment-select"
+              value={selectedSegment}
+              onChange={(event) => setSelectedSegment(event.target.value)}
+            >
+              {segmentOptions.map((segment) => (
+                <option key={segment} value={segment}>
+                  {segment}
+                </option>
+              ))}
+            </select>
+            <input
+              className="search"
+              type="search"
             placeholder="搜索户号/户名/地址（- 可代替 1~5 个中文字）"
             value={query}
             onChange={(event) => setQuery(event.target.value)}

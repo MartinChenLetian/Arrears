@@ -172,6 +172,15 @@ input {
   justify-content: flex-end;
 }
 
+.segment-select {
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .header-right {
   display: flex;
   flex-direction: column;
@@ -593,6 +602,7 @@ input {
 
   .hotline-btn,
   .file-upload,
+  .segment-select,
   .mode-toggle button,
   .primary,
   .ghost {

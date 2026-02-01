@@ -56,7 +56,7 @@ export function RecordsProvider({ children }) {
 
     const { data, error: fetchError } = await supabase
       .from('billing_records')
-      .select('account_no, name, phone, address, arrears, current_fee, total_fee, asked, source_file, imported_at')
+      .select('account_no, name, phone, address, arrears, current_fee, total_fee, asked, meter_segment, source_file, imported_at')
       .order('account_no', { ascending: true });
 
     if (fetchError) {
@@ -73,6 +73,7 @@ export function RecordsProvider({ children }) {
       currentFee: row.current_fee ?? '',
       totalFee: row.total_fee ?? '',
       asked: row.asked ?? false,
+      meterSegment: row.meter_segment ?? '',
       sourceFile: row.source_file ?? '',
       importedAt: row.imported_at ?? '',
     }));

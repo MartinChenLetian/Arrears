@@ -11,6 +11,7 @@ create table if not exists public.billing_records (
   current_fee numeric,
   total_fee numeric,
   asked boolean default false,
+  meter_segment text,
   source_file text,
   imported_at timestamptz default now()
 );

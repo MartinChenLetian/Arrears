@@ -68,6 +68,18 @@ export default function BackOffice() {
     setImporting(true);
     setStatus('');
     try {
+      const { error: clearProcessedError } = await supabase
+        .from('processed_accounts')
+        .delete()
+        .neq('account_no', '');
+      if (clearProcessedError) throw clearProcessedError;
+
+      const { error: clearBillingError } = await supabase
+        .from('billing_records')
+        .delete()
+        .neq('account_no', '');
+      if (clearBillingError) throw clearBillingError;
+
       const parsed = await parseXlsxFile(file);
       if (parsed.length === 0) {
         setStatus('未解析到任何记录');
@@ -82,6 +94,7 @@ export default function BackOffice() {
         current_fee: parseNumber(record.currentFee),
         total_fee: parseNumber(record.totalFee),
         asked: false,
+        meter_segment: record.meterSegment || null,
         source_file: file.name,
         imported_at: new Date().toISOString(),
       }));
