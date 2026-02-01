@@ -109,6 +109,25 @@ export function RecordsProvider({ children }) {
     setProcessedMap(nextMap);
   }
 
+  function enqueueLocalProcessed(record, note) {
+    try {
+      const key = 'processed_pending';
+      const raw = localStorage.getItem(key);
+      const list = raw ? JSON.parse(raw) : [];
+      list.push({
+        account_no: record.accountNo,
+        name: record.name,
+        phone: record.phone,
+        address: record.address,
+        note: note ?? '',
+        processed_at: new Date().toISOString(),
+      });
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (err) {
+      console.warn('Failed to persist pending processed item', err);
+    }
+  }
+
   async function markProcessed(record, note) {
     if (!record?.accountNo) return { ok: false, message: '缺少户号' };
     if (!hasSupabaseConfig) return { ok: false, message: 'Supabase 未配置，请检查 .env' };
@@ -137,6 +156,37 @@ export function RecordsProvider({ children }) {
         processedAt: payload.processed_at,
       },
     }));
+
+    return { ok: true };
+  }
+
+  function markProcessedOptimistic(record, note) {
+    if (!record?.accountNo) return { ok: false, message: '缺少户号' };
+    if (!hasSupabaseConfig) return { ok: false, message: 'Supabase 未配置，请检查 .env' };
+
+    const processedAt = new Date().toISOString();
+    setProcessedMap((prev) => ({
+      ...prev,
+      [record.accountNo]: { note: note ?? '', processedAt },
+    }));
+    enqueueLocalProcessed(record, note);
+
+    supabase
+      .from('processed_accounts')
+      .upsert(
+        {
+          account_no: record.accountNo,
+          name: record.name,
+          phone: record.phone,
+          address: record.address,
+          note: note ?? '',
+          processed_at: processedAt,
+        },
+        { onConflict: 'account_no' }
+      )
+      .then(({ error: upsertError }) => {
+        if (upsertError) setError(upsertError.message);
+      });
 
     return { ok: true };
   }
@@ -176,6 +226,7 @@ export function RecordsProvider({ children }) {
     loading,
     error,
     markProcessed,
+    markProcessedOptimistic,
     unmarkProcessed,
     refreshProcessed,
     refreshRecords,

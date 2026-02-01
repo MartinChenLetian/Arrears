@@ -4,7 +4,16 @@ import { buildAddressPattern, formatCurrency, safeText } from '../lib/format';
 import { useRecords } from '../context/RecordsContext';
 
 export default function Home() {
-  const { records, activeRecords, processedMap, loading, error, sourceFile, markProcessed, unmarkProcessed } = useRecords();
+  const {
+    records,
+    activeRecords,
+    processedMap,
+    loading,
+    error,
+    sourceFile,
+    markProcessedOptimistic,
+    unmarkProcessed,
+  } = useRecords();
   const [mode, setMode] = useState('list');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [status, setStatus] = useState('');
@@ -84,7 +93,7 @@ export default function Home() {
 
   const handleMarkFromModal = async (note) => {
     if (!selectedRecord) return;
-    const result = await markProcessed(selectedRecord, note);
+    const result = markProcessedOptimistic(selectedRecord, note);
     if (!result.ok) {
       setStatus(result.message || '标记失败');
       return;
@@ -95,7 +104,7 @@ export default function Home() {
 
   const handleCardMark = async () => {
     if (!currentRecord) return;
-    const result = await markProcessed(currentRecord, '');
+    const result = markProcessedOptimistic(currentRecord, '');
     if (!result.ok) {
       setStatus(result.message || '标记失败');
       return;
@@ -221,20 +230,20 @@ export default function Home() {
               onClick={() => setSelectedRecord(record)}
             >
               <div>
-                <div className="record-title">
-                  {safeText(record.address)}
-                  {record.meterSegment && (
-                    <span className="segment-tag">段号 {record.meterSegment}</span>
-                  )}
-                </div>
+                <div className="record-title">{safeText(record.address)}</div>
                 <div className="record-sub">
                   {safeText(record.name)} · 户号 {safeText(record.accountNo)}
                 </div>
               </div>
-              <div className="record-amount">
-                <span>欠费</span>
-                <strong>{formatCurrency(record.arrears)}</strong>
-              </div>
+                <div className="record-amount">
+                  <span>
+                    欠费
+                    {record.meterSegment && (
+                      <span className="segment-inline">· {record.meterSegment}</span>
+                    )}
+                  </span>
+                  <strong>{formatCurrency(record.arrears)}</strong>
+                </div>
             </button>
           ))}
         </div>
@@ -266,12 +275,7 @@ export default function Home() {
               <div className="card-body">
                 <div>
                   <span className="label">用电地址</span>
-                  <div>
-                    {safeText(currentRecord?.address)}
-                    {currentRecord?.meterSegment && (
-                      <span className="segment-tag">段号 {currentRecord.meterSegment}</span>
-                    )}
-                  </div>
+                  <div>{safeText(currentRecord?.address)}</div>
                 </div>
                 <div className="card-grid">
                   <div>
@@ -333,12 +337,7 @@ export default function Home() {
                 {processedRecords.map((record) => (
                   <div key={record.accountNo} className="record-item processed-item">
                     <div>
-                      <div className="record-title">
-                        {safeText(record.address)}
-                        {record.meterSegment && (
-                          <span className="segment-tag">段号 {record.meterSegment}</span>
-                        )}
-                      </div>
+                      <div className="record-title">{safeText(record.address)}</div>
                       <div className="record-sub">
                         {safeText(record.name)} · 户号 {safeText(record.accountNo)}
                       </div>
