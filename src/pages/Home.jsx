@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import RecordModal from '../components/RecordModal';
 import { buildAddressPattern, formatCurrency, safeText } from '../lib/format';
 import { useRecords } from '../context/RecordsContext';
@@ -174,9 +175,9 @@ export default function Home() {
             <p className="muted search-result">搜索结果：{filteredRecords.length} 条</p>
           )}
           <div className="mode-controls">
-            <a className="ghost back-link" href="/back">
+            <Link className="ghost back-link" to="/back">
               后台入口
-            </a>
+            </Link>
             <button className="ghost" type="button" onClick={() => setShowProcessed(true)}>
               已处理名单
             </button>
