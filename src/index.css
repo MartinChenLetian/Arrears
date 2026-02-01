@@ -215,6 +215,8 @@ input {
   border-radius: var(--radius);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  text-align: left;
 }
 
 .record-item:hover {

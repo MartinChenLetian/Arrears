@@ -4,7 +4,7 @@ import { buildAddressPattern, formatCurrency, safeText } from '../lib/format';
 import { useRecords } from '../context/RecordsContext';
 
 export default function Home() {
-  const { activeRecords, loading, error, sourceFile, markProcessed, unmarkProcessed } = useRecords();
+  const { records, activeRecords, processedMap, loading, error, sourceFile, markProcessed, unmarkProcessed } = useRecords();
   const [mode, setMode] = useState('list');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [status, setStatus] = useState('');
@@ -19,11 +19,16 @@ export default function Home() {
   const activePointerId = useRef(null);
 
   const stats = useMemo(() => {
+    const askedCount = records.filter((record) => record.asked).length;
+    const processedCount = Object.keys(processedMap).length;
     return {
-      total: activeRecords.length,
+      total: records.length,
+      active: activeRecords.length,
+      asked: askedCount,
+      processed: processedCount,
       sourceFile,
     };
-  }, [activeRecords.length, sourceFile]);
+  }, [records, activeRecords.length, processedMap, sourceFile]);
 
   const filteredRecords = useMemo(() => {
     if (!query.trim()) return activeRecords;
@@ -124,7 +129,7 @@ export default function Home() {
         <div>
           <h1>催费工作台</h1>
           <p className="muted">
-            数据来源：{stats.sourceFile ? stats.sourceFile : '数据库导入'}，共 {stats.total} 条待催费记录
+            数据来源：{stats.sourceFile ? stats.sourceFile : '数据库导入'}，总计 {stats.total} 条，待催费 {stats.active} 条，已催费成功 {stats.asked} 条，已处理 {stats.processed} 条
           </p>
         </div>
         <div className="mode-controls">
