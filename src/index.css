@@ -264,6 +264,16 @@ input {
   font-size: 16px;
 }
 
+.segment-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 .record-sub {
   color: var(--ink-soft);
   font-size: 13px;

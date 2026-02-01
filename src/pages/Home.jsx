@@ -221,7 +221,12 @@ export default function Home() {
               onClick={() => setSelectedRecord(record)}
             >
               <div>
-                <div className="record-title">{safeText(record.address)}</div>
+                <div className="record-title">
+                  {safeText(record.address)}
+                  {record.meterSegment && (
+                    <span className="segment-tag">段号 {record.meterSegment}</span>
+                  )}
+                </div>
                 <div className="record-sub">
                   {safeText(record.name)} · 户号 {safeText(record.accountNo)}
                 </div>
@@ -261,7 +266,12 @@ export default function Home() {
               <div className="card-body">
                 <div>
                   <span className="label">用电地址</span>
-                  <div>{safeText(currentRecord?.address)}</div>
+                  <div>
+                    {safeText(currentRecord?.address)}
+                    {currentRecord?.meterSegment && (
+                      <span className="segment-tag">段号 {currentRecord.meterSegment}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="card-grid">
                   <div>
@@ -323,7 +333,12 @@ export default function Home() {
                 {processedRecords.map((record) => (
                   <div key={record.accountNo} className="record-item processed-item">
                     <div>
-                      <div className="record-title">{safeText(record.address)}</div>
+                      <div className="record-title">
+                        {safeText(record.address)}
+                        {record.meterSegment && (
+                          <span className="segment-tag">段号 {record.meterSegment}</span>
+                        )}
+                      </div>
                       <div className="record-sub">
                         {safeText(record.name)} · 户号 {safeText(record.accountNo)}
                       </div>
