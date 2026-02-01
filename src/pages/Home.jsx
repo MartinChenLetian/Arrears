@@ -9,6 +9,8 @@ export default function Home() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
+  const [showProcessed, setShowProcessed] = useState(false);
+  const [processedQuery, setProcessedQuery] = useState('');
 
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -32,10 +34,23 @@ export default function Home() {
 
   const filteredRecords = useMemo(() => {
     if (!query.trim()) return activeRecords;
-    const pattern = buildAddressPattern(query);
-    if (!pattern) return activeRecords;
-    return activeRecords.filter((record) => pattern.test(record.address || ''));
+    const term = query.trim();
+    const pattern = buildAddressPattern(term);
+    return activeRecords.filter((record) => {
+      if (record.accountNo?.includes(term)) return true;
+      if (record.name?.includes(term)) return true;
+      if (pattern) return pattern.test(record.address || '');
+      return record.address?.includes(term);
+    });
   }, [activeRecords, query]);
+
+  const processedRecords = useMemo(() => {
+    const list = records.filter((record) => processedMap[record.accountNo]);
+    if (!processedQuery.trim()) return list;
+    const pattern = buildAddressPattern(processedQuery.trim());
+    if (!pattern) return list;
+    return list.filter((record) => pattern.test(record.address || ''));
+  }, [records, processedMap, processedQuery]);
 
   const currentRecord = filteredRecords[cardIndex] ?? null;
 
@@ -128,15 +143,22 @@ export default function Home() {
       <div className="page-header">
         <div>
           <h1>催费工作台</h1>
+        </div>
+        <div className="header-right">
           <p className="muted">
             数据来源：{stats.sourceFile ? stats.sourceFile : '数据库导入'}，总计 {stats.total} 条，待催费 {stats.active} 条，已催费成功 {stats.asked} 条，已处理 {stats.processed} 条
           </p>
-        </div>
-        <div className="mode-controls">
+          {query.trim() && (
+            <p className="muted search-result">搜索结果：{filteredRecords.length} 条</p>
+          )}
+          <div className="mode-controls">
+            <button className="ghost" type="button" onClick={() => setShowProcessed(true)}>
+              已处理名单
+            </button>
           <input
             className="search"
             type="search"
-            placeholder="搜索地址（- 可代替 1~5 个中文字）"
+            placeholder="搜索户号/户名/地址（- 可代替 1~5 个中文字）"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -155,6 +177,7 @@ export default function Home() {
           >
             卡片模式
           </button>
+          </div>
           </div>
         </div>
       </div>
@@ -250,6 +273,51 @@ export default function Home() {
         onClose={() => setSelectedRecord(null)}
         onMark={handleMarkFromModal}
       />
+
+      {showProcessed && (
+        <div className="modal-backdrop" onClick={() => setShowProcessed(false)}>
+          <div className="modal processed-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2>已处理名单</h2>
+                <p className="muted">可搜索地址并撤销已处理</p>
+              </div>
+              <button className="ghost" type="button" onClick={() => setShowProcessed(false)}>
+                关闭
+              </button>
+            </div>
+            <div className="modal-body">
+              <input
+                className="search"
+                type="search"
+                placeholder="搜索地址（- 可代替 1~5 个中文字）"
+                value={processedQuery}
+                onChange={(event) => setProcessedQuery(event.target.value)}
+              />
+              <div className="record-list processed-list">
+                {processedRecords.length === 0 && <div className="empty">暂无已处理记录</div>}
+                {processedRecords.map((record) => (
+                  <div key={record.accountNo} className="record-item processed-item">
+                    <div>
+                      <div className="record-title">{safeText(record.address)}</div>
+                      <div className="record-sub">
+                        {safeText(record.name)} · 户号 {safeText(record.accountNo)}
+                      </div>
+                    </div>
+                    <button
+                      className="primary ghost"
+                      type="button"
+                      onClick={() => unmarkProcessed(record.accountNo)}
+                    >
+                      撤销已处理
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
