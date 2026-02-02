@@ -5,6 +5,7 @@ const projectName = '电子催费单';
 export default function Header() {
   const [showHotline, setShowHotline] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [isForced, setIsForced] = useState(false);
 
   useEffect(() => {
     const applyTheme = (value) => {
@@ -21,14 +22,105 @@ export default function Header() {
       return after1745 || before0600;
     };
 
-    applyTheme(shouldAutoEnable());
+    const clearOverrideIfExpired = () => {
+      const raw = localStorage.getItem('themeOverrideUntil');
+      if (!raw) return false;
+      const until = Number(raw);
+      if (!Number.isFinite(until)) return false;
+      if (Date.now() >= until) {
+        localStorage.removeItem('themeOverride');
+        localStorage.removeItem('themeValue');
+        localStorage.removeItem('themeOverrideUntil');
+        setIsForced(false);
+        return true;
+      }
+      return false;
+    };
+
+    clearOverrideIfExpired();
+
+    const storedOverride = localStorage.getItem('themeOverride');
+    const storedValue = localStorage.getItem('themeValue');
+    if (storedOverride === 'true' && storedValue) {
+      setIsForced(true);
+      applyTheme(storedValue === 'dark');
+    } else {
+      applyTheme(shouldAutoEnable());
+    }
 
     const timer = setInterval(() => {
+      if (clearOverrideIfExpired()) {
+        applyTheme(shouldAutoEnable());
+        return;
+      }
+      if (localStorage.getItem('themeOverride') === 'true') return;
       applyTheme(shouldAutoEnable());
     }, 60 * 1000);
 
     return () => clearInterval(timer);
   }, []);
+
+  const forceToggleTheme = () => {
+    const next = !isDark;
+    const now = new Date();
+    const until = new Date(now);
+    until.setDate(now.getDate() + 1);
+    until.setHours(6, 0, 0, 0);
+    localStorage.setItem('themeOverride', 'true');
+    localStorage.setItem('themeValue', next ? 'dark' : 'default');
+    localStorage.setItem('themeOverrideUntil', String(until.getTime()));
+    setIsForced(true);
+    setIsDark(next);
+    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'default');
+  };
+
+  useEffect(() => {
+    const handleKey = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        forceToggleTheme();
+      }
+    };
+
+    const handleMotion = (() => {
+      let lastTrigger = 0;
+      let shakeCount = 0;
+      return (event) => {
+        const acc = event.accelerationIncludingGravity;
+        if (!acc) return;
+        const magnitude = Math.sqrt(
+          (acc.x || 0) * (acc.x || 0) +
+          (acc.y || 0) * (acc.y || 0) +
+          (acc.z || 0) * (acc.z || 0)
+        );
+        const now = Date.now();
+        if (magnitude > 25) {
+          shakeCount += 1;
+          if (shakeCount >= 3 && now - lastTrigger > 1500) {
+            lastTrigger = now;
+            shakeCount = 0;
+            forceToggleTheme();
+          }
+        }
+        if (now - lastTrigger > 2000) shakeCount = 0;
+      };
+    })();
+
+    const enableMotion = () => {
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission().catch(() => {});
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    window.addEventListener('devicemotion', handleMotion);
+    window.addEventListener('touchstart', enableMotion, { once: true });
+
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      window.removeEventListener('devicemotion', handleMotion);
+    };
+  }, [isDark]);
 
   return (
     <>
@@ -40,7 +132,9 @@ export default function Header() {
             <span className="text-short">电子催费</span>
           </span>
           <span className="theme-status">
-            {isDark ? '暗黑模式（17:45-06:00）' : '日间模式'}
+            {isDark
+              ? `暗黑模式${isForced ? '（强制）' : '（17:45-06:00）'}`
+              : `${isForced ? '日间模式（强制）' : '日间模式'}`}
           </span>
         </div>
         <nav className="header-actions">

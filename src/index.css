@@ -117,17 +117,25 @@ input {
   color: var(--ink);
 }
 
+[data-theme="dark"] .image-tile:hover {
+  background: #243546;
+}
+
+[data-theme="dark"] .image-tile:active {
+  background: #222e3d;
+}
+
 [data-theme="dark"] .note-preview-item img {
   border-color: rgba(223, 230, 238, 0.18);
 }
 
 [data-theme="dark"] .primary:hover {
-  background: #624224;
+  background: #f0a55fc7;
   box-shadow: 0 4px 10px rgba(237, 161, 92, 0.1);
 }
 
 [data-theme="dark"] .primary:active {
-  background: #764c2a;
+  background: #d58547;
   box-shadow: 0 3px 8px rgba(226, 148, 82, 0.1);
 }
 
@@ -382,7 +390,30 @@ input {
   margin-right: 12px;
   width: 16px;
   height: 16px;
-  accent-color: var(--accent);
+  appearance: none;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  display: inline-grid;
+  place-content: center;
+}
+
+[data-theme="dark"] .batch-checkbox {
+  border-color: #3a4656;
+  background: #1b222c;
+}
+
+.batch-checkbox:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.batch-checkbox:checked::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffffffe2;
 }
 
 .batch-actions {
