@@ -240,6 +240,23 @@ input {
   gap: 12px;
 }
 
+.batch-checkbox {
+  margin-right: 12px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.batch-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
 .record-item {
   display: flex;
   justify-content: space-between;

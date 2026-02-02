@@ -22,6 +22,8 @@ export default function Home() {
   const [showProcessed, setShowProcessed] = useState(false);
   const [processedQuery, setProcessedQuery] = useState('');
   const [selectedSegment, setSelectedSegment] = useState('EI35全部段号');
+  const [batching, setBatching] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState(() => new Set());
 
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -58,6 +60,30 @@ export default function Home() {
       return record.address?.includes(term);
     });
   }, [activeRecords, query, selectedSegment]);
+
+  useEffect(() => {
+    if (!batching) setSelectedBatch(new Set());
+  }, [batching]);
+
+  const toggleBatch = (record) => {
+    setSelectedBatch((prev) => {
+      const next = new Set(prev);
+      if (next.has(record.accountNo)) next.delete(record.accountNo);
+      else next.add(record.accountNo);
+      return next;
+    });
+  };
+
+  const handleBatchComplete = () => {
+    if (selectedBatch.size === 0) return;
+    filteredRecords.forEach((record) => {
+      if (selectedBatch.has(record.accountNo)) {
+        markProcessedOptimistic(record, '');
+      }
+    });
+    setStatus(`批量完成 ${selectedBatch.size} 条`);
+    setBatching(false);
+  };
 
   const segmentOptions = useMemo(() => {
     const set = new Set();
@@ -178,6 +204,9 @@ export default function Home() {
             <Link className="ghost back-link" to="/back">
               后台入口
             </Link>
+            <button className="ghost" type="button" onClick={() => setBatching((prev) => !prev)}>
+              {batching ? '取消批量' : '批量完成'}
+            </button>
             <button className="ghost" type="button" onClick={() => setShowProcessed(true)}>
               已处理名单
             </button>
@@ -231,8 +260,16 @@ export default function Home() {
               key={record.accountNo}
               className="record-item"
               type="button"
-              onClick={() => setSelectedRecord(record)}
+              onClick={() => (batching ? toggleBatch(record) : setSelectedRecord(record))}
             >
+              {batching && (
+                <input
+                  className="batch-checkbox"
+                  type="checkbox"
+                  checked={selectedBatch.has(record.accountNo)}
+                  readOnly
+                />
+              )}
               <div>
                 <div className="record-title">{safeText(record.address)}</div>
                 <div className="record-sub">
@@ -250,6 +287,14 @@ export default function Home() {
                 </div>
             </button>
           ))}
+          {batching && (
+            <div className="batch-footer">
+              <div>已选择 {selectedBatch.size} 条</div>
+              <button className="primary" type="button" onClick={handleBatchComplete}>
+                批量标记完成
+              </button>
+            </div>
+          )}
         </div>
       )}
 
