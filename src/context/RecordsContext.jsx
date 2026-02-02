@@ -96,7 +96,7 @@ export function RecordsProvider({ children }) {
     }
     const { data, error: fetchError } = await supabase
       .from('processed_accounts')
-      .select('account_no, note, note_image, processed_at');
+      .select('account_no, note, note_images, processed_at');
 
     if (fetchError) {
       setError(fetchError.message);
@@ -107,7 +107,7 @@ export function RecordsProvider({ children }) {
     (data ?? []).forEach((row) => {
       nextMap[row.account_no] = {
         note: row.note ?? '',
-        noteImage: row.note_image ?? '',
+        noteImages: Array.isArray(row.note_images) ? row.note_images : [],
         processedAt: row.processed_at,
       };
     });
@@ -131,12 +131,12 @@ export function RecordsProvider({ children }) {
     }
   }
 
-  function saveRemarkDraft(accountNo, note, noteImage) {
+  function saveRemarkDraft(accountNo, note, noteImages) {
     if (!accountNo) return;
     const cache = getRemarkCache();
     cache[accountNo] = {
       note: note ?? '',
-      noteImage: noteImage ?? '',
+      noteImages: Array.isArray(noteImages) ? noteImages : [],
       updatedAt: new Date().toISOString(),
     };
     setRemarkCache(cache);
@@ -144,7 +144,7 @@ export function RecordsProvider({ children }) {
 
   function getRemarkDraft(accountNo) {
     const cache = getRemarkCache();
-    return cache[accountNo] || { note: '', noteImage: '' };
+    return cache[accountNo] || { note: '', noteImages: [] };
   }
 
   function enqueueLocalProcessed(record, note) {
@@ -158,7 +158,7 @@ export function RecordsProvider({ children }) {
         phone: record.phone,
         address: record.address,
         note: note ?? '',
-        note_image: getRemarkDraft(record.accountNo).noteImage ?? '',
+        note_images: getRemarkDraft(record.accountNo).noteImages ?? [],
         processed_at: new Date().toISOString(),
       });
       localStorage.setItem(key, JSON.stringify(list));
@@ -203,7 +203,7 @@ export function RecordsProvider({ children }) {
       phone: record.phone,
       address: record.address,
       note: note ?? '',
-      note_image: getRemarkDraft(record.accountNo).noteImage ?? '',
+      note_images: getRemarkDraft(record.accountNo).noteImages ?? [],
       processed_at: new Date().toISOString(),
     };
 
@@ -219,7 +219,7 @@ export function RecordsProvider({ children }) {
       ...prev,
       [record.accountNo]: {
         note: note ?? '',
-        noteImage: payload.note_image ?? '',
+        noteImages: payload.note_images ?? [],
         processedAt: payload.processed_at,
       },
     }));
@@ -227,17 +227,17 @@ export function RecordsProvider({ children }) {
     return { ok: true };
   }
 
-  function markProcessedOptimistic(record, note, noteImage) {
+  function markProcessedOptimistic(record, note, noteImages) {
     if (!record?.accountNo) return { ok: false, message: '缺少户号' };
     if (!hasSupabaseConfig) return { ok: false, message: 'Supabase 未配置，请检查 .env' };
 
     const processedAt = new Date().toISOString();
-    if (note !== undefined || noteImage !== undefined) {
-      saveRemarkDraft(record.accountNo, note ?? '', noteImage ?? '');
+    if (note !== undefined || noteImages !== undefined) {
+      saveRemarkDraft(record.accountNo, note ?? '', noteImages ?? []);
     }
     setProcessedMap((prev) => ({
       ...prev,
-      [record.accountNo]: { note: note ?? '', noteImage: noteImage ?? '', processedAt },
+      [record.accountNo]: { note: note ?? '', noteImages: noteImages ?? [], processedAt },
     }));
     enqueueLocalProcessed(record, note);
 
@@ -250,7 +250,7 @@ export function RecordsProvider({ children }) {
           phone: record.phone,
           address: record.address,
           note: note ?? '',
-          note_image: noteImage ?? getRemarkDraft(record.accountNo).noteImage ?? '',
+          note_images: noteImages ?? getRemarkDraft(record.accountNo).noteImages ?? [],
           processed_at: processedAt,
         },
         { onConflict: 'account_no' }

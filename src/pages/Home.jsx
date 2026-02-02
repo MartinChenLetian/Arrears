@@ -222,7 +222,8 @@ export default function Home() {
         <div className="title-row">
           <h1>催费工作台</h1>
           <Link className="ghost back-link" to="/back">
-            后台入口
+            <span className="text-full">后台入口</span>
+            <span className="text-short">后台</span>
           </Link>
         </div>
         <div className="header-right">
@@ -240,10 +241,12 @@ export default function Home() {
           )}
           <div className="mode-controls">
             <button className="ghost" type="button" onClick={() => setBatching((prev) => !prev)}>
-              {batching ? '取消批量' : '批量完成'}
+              <span className="text-full">{batching ? '取消批量' : '批量完成'}</span>
+              <span className="text-short">{batching ? '取消' : '批量'}</span>
             </button>
             <button className="ghost" type="button" onClick={() => setShowProcessed(true)}>
-              已处理名单
+              <span className="text-full">已处理名单</span>
+              <span className="text-short">已处理</span>
             </button>
             <select
               className="segment-select"
@@ -270,14 +273,16 @@ export default function Home() {
                 type="button"
                 onClick={() => setMode('list')}
               >
-                列表模式
+                <span className="text-full">列表模式</span>
+                <span className="text-short">列表</span>
               </button>
               <button
                 className={mode === 'card' ? 'active' : ''}
                 type="button"
                 onClick={() => setMode('card')}
               >
-                卡片模式
+                <span className="text-full">卡片模式</span>
+                <span className="text-short">卡片</span>
               </button>
             </div>
           )}
@@ -296,10 +301,12 @@ export default function Home() {
               <div>已选择 {selectedBatch.size} 条</div>
               <div className="batch-actions">
                 <button className="ghost" type="button" onClick={handleBatchToggleAll}>
-                  {selectedBatch.size === filteredRecords.length ? '取消全选' : '全选'}
+                  <span className="text-full">{selectedBatch.size === filteredRecords.length ? '取消全选' : '全选'}</span>
+                  <span className="text-short">{selectedBatch.size === filteredRecords.length ? '取消' : '全选'}</span>
                 </button>
                 <button className="primary" type="button" onClick={handleBatchComplete}>
-                  批量标记完成
+                  <span className="text-full">批量标记完成</span>
+                  <span className="text-short">批量完成</span>
                 </button>
               </div>
             </div>
@@ -402,10 +409,10 @@ export default function Home() {
         onClose={() => setSelectedRecord(null)}
         onMark={handleMarkFromModal}
         defaultNote={selectedRecord ? getRemarkDraft(selectedRecord.accountNo).note : ''}
-        defaultNoteImage={selectedRecord ? getRemarkDraft(selectedRecord.accountNo).noteImage : ''}
-        onDraftChange={(note, image) => {
+        defaultNoteImages={selectedRecord ? getRemarkDraft(selectedRecord.accountNo).noteImages : []}
+        onDraftChange={(note, images) => {
           if (!selectedRecord) return;
-          saveRemarkDraft(selectedRecord.accountNo, note, image);
+          saveRemarkDraft(selectedRecord.accountNo, note, images);
         }}
       />
 
@@ -418,7 +425,8 @@ export default function Home() {
                 <p className="muted">可搜索地址并撤销已处理</p>
               </div>
               <button className="ghost" type="button" onClick={() => setShowProcessed(false)}>
-                关闭
+                <span className="text-full">关闭</span>
+                <span className="text-short">关</span>
               </button>
             </div>
             <div className="modal-body">

@@ -207,20 +207,24 @@ export default function BackOffice() {
         <div className="title-row">
           <h1>后台标记</h1>
           <Link className="ghost back-link" to="/">
-            返回工作台
+            <span className="text-full">返回工作台</span>
+            <span className="text-short">返回</span>
           </Link>
         </div>
         <p className="muted">在此手动标记已处理记录，主催费页将自动隐藏。</p>
         <div className="backoffice-actions">
           <button className="ghost" type="button" onClick={handleExportAll}>
-            全量导出
+            <span className="text-full">全量导出</span>
+            <span className="text-short">全量</span>
           </button>
           <button className="ghost" type="button" onClick={handleExport}>
-            导出筛选
+            <span className="text-full">导出筛选</span>
+            <span className="text-short">筛选</span>
           </button>
           <label className="file-upload">
             <input type="file" accept=".xlsx" onChange={handleImport} disabled={importing} />
-            {importing ? '正在导入…' : '导入 xlsx'}
+            <span className="text-full">{importing ? '正在导入…' : '导入 xlsx'}</span>
+            <span className="text-short">{importing ? '导入中' : '导入'}</span>
           </label>
           <input
             className="search"
@@ -265,15 +269,17 @@ export default function BackOffice() {
                       <div className="badge success">{asked ? '催费成功' : '已处理'}</div>
                       {processed && <div className="note-text">备注：{processed.note || '—'}</div>}
                       {processed && (
-                        <button className="ghost" type="button" onClick={() => handleUnmark(record.accountNo)}>
-                          取消标记
-                        </button>
+                      <button className="ghost" type="button" onClick={() => handleUnmark(record.accountNo)}>
+                          <span className="text-full">取消标记</span>
+                          <span className="text-short">取消</span>
+                      </button>
                       )}
                     </>
                   ) : (
                     <>
                       <button className="ghost" type="button" onClick={() => handleAsked(record)}>
-                        催费成功
+                        <span className="text-full">催费成功</span>
+                        <span className="text-short">成功</span>
                       </button>
                       <input
                         className="note-inline"
@@ -288,7 +294,8 @@ export default function BackOffice() {
                         }
                       />
                       <button className="primary" type="button" onClick={() => handleMark(record)}>
-                        标记完成
+                        <span className="text-full">标记完成</span>
+                        <span className="text-short">完成</span>
                       </button>
                     </>
                   )}

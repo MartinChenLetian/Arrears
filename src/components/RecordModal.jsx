@@ -7,11 +7,11 @@ export default function RecordModal({
   onClose,
   onMark,
   defaultNote = '',
-  defaultNoteImage = '',
+  defaultNoteImages = [],
   onDraftChange,
 }) {
   const [note, setNote] = useState(defaultNote);
-  const [noteImage, setNoteImage] = useState(defaultNoteImage);
+  const [noteImages, setNoteImages] = useState(defaultNoteImages);
   const phones = useMemo(() => splitPhones(record?.phone), [record?.phone]);
   const [selectedPhone, setSelectedPhone] = useState(phones[0] ?? '');
   const callNumber = selectedPhone || phones[0] || '';
@@ -20,29 +20,31 @@ export default function RecordModal({
   useEffect(() => {
     setNote(defaultNote);
     setSelectedPhone(phones[0] ?? '');
-    setNoteImage(defaultNoteImage);
-  }, [defaultNote, defaultNoteImage, phones, record?.accountNo]);
+    setNoteImages(defaultNoteImages);
+  }, [defaultNote, defaultNoteImages, phones, record?.accountNo]);
 
   if (!isOpen || !record) return null;
 
   const handleClose = () => {
     setNote(defaultNote);
-    setNoteImage(defaultNoteImage);
+    setNoteImages(defaultNoteImages);
     onClose();
   };
 
   const handleMark = async () => {
-    await onMark?.(note, noteImage);
+    await onMark?.(note, noteImages);
   };
 
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (noteImages.length >= 5) return;
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === 'string' ? reader.result : '';
-      setNoteImage(result);
-      onDraftChange?.(note, result);
+      const next = [...noteImages, result].slice(0, 5);
+      setNoteImages(next);
+      onDraftChange?.(note, next);
     };
     reader.readAsDataURL(file);
   };
@@ -56,7 +58,8 @@ export default function RecordModal({
             <p>户号：{safeText(record.accountNo)}</p>
           </div>
           <button className="ghost" type="button" onClick={handleClose}>
-            关闭
+            <span className="text-full">关闭</span>
+            <span className="text-short">关</span>
           </button>
         </div>
 
@@ -116,38 +119,53 @@ export default function RecordModal({
           </label>
           <div className="note-upload">
             <span className="label">备注图片</span>
-            <input type="file" accept="image/*" onChange={handleImageChange} />
-            {noteImage && (
-              <div className="note-preview">
-                <img src={noteImage} alt="备注图片" />
-                <button
-                  className="ghost"
-                  type="button"
-                  onClick={() => {
-                    setNoteImage('');
-                    onDraftChange?.(note, '');
-                  }}
-                >
-                  移除图片
-                </button>
-              </div>
-            )}
+            <div className="note-preview-grid">
+              {noteImages.map((img, idx) => (
+                <div key={`${img.slice(0, 12)}-${idx}`} className="note-preview-item">
+                  <img src={img} alt={`备注图片${idx + 1}`} />
+                    <button
+                      className="ghost"
+                      type="button"
+                      onClick={() => {
+                        const next = noteImages.filter((_, index) => index !== idx);
+                        setNoteImages(next);
+                        onDraftChange?.(note, next);
+                      }}
+                    >
+                      <span className="text-full">移除</span>
+                      <span className="text-short">删</span>
+                    </button>
+                </div>
+              ))}
+              {noteImages.length < 5 && (
+                <label className="image-tile">
+                  <input type="file" accept="image/*" onChange={handleImageChange} />
+                  <span className="plus">＋</span>
+                </label>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="modal-footer">
+          <button
+            className="primary"
+            type="button"
+            onClick={handleMark}
+          >
+            <span className="text-full">标记完成</span>
+            <span className="text-short">完成</span>
+          </button>
           <a
-            className={`primary ${!hasNumber ? 'disabled' : ''}`}
+            className={`ghost ${!hasNumber ? 'disabled' : ''}`}
             href={hasNumber ? `tel:${callNumber}` : undefined}
             onClick={(event) => {
               if (!hasNumber) event.preventDefault();
             }}
           >
-            开始催费
+            <span className="text-full">开始催费</span>
+            <span className="text-short">催费</span>
           </a>
-          <button className="primary ghost" type="button" onClick={handleMark}>
-            标记完成
-          </button>
         </div>
       </div>
     </div>
