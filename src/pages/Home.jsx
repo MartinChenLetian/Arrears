@@ -85,6 +85,15 @@ export default function Home() {
     setBatching(false);
   };
 
+  const handleBatchToggleAll = () => {
+    setSelectedBatch((prev) => {
+      if (prev.size === filteredRecords.length) {
+        return new Set();
+      }
+      return new Set(filteredRecords.map((record) => record.accountNo));
+    });
+  };
+
   const segmentOptions = useMemo(() => {
     const set = new Set();
     records.forEach((record) => {
@@ -290,9 +299,14 @@ export default function Home() {
           {batching && (
             <div className="batch-footer">
               <div>已选择 {selectedBatch.size} 条</div>
-              <button className="primary" type="button" onClick={handleBatchComplete}>
-                批量标记完成
-              </button>
+              <div className="batch-actions">
+                <button className="ghost" type="button" onClick={handleBatchToggleAll}>
+                  {selectedBatch.size === filteredRecords.length ? '取消全选' : '全选'}
+                </button>
+                <button className="primary" type="button" onClick={handleBatchComplete}>
+                  批量标记完成
+                </button>
+              </div>
             </div>
           )}
         </div>

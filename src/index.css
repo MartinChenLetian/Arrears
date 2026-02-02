@@ -257,6 +257,11 @@ input {
   background: var(--surface);
 }
 
+.batch-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .record-item {
   display: flex;
   justify-content: space-between;
