@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { buildAddressPattern, formatCurrency, parseNumber, safeText } from '../lib/format';
 import { useRecords } from '../context/RecordsContext';
 import { parseXlsxFile } from '../lib/xlsxLoader';
+import * as XLSX from 'xlsx';
 import { hasSupabaseConfig, supabase } from '../lib/supabase';
 
 export default function BackOffice() {
@@ -68,6 +69,13 @@ export default function BackOffice() {
     setImporting(true);
     setStatus('');
     try {
+      const { data: previousData, error: previousError } = await supabase
+        .from('billing_records')
+        .select('account_no, name, phone, address, meter_segment, arrears, current_fee, total_fee');
+      if (previousError) throw previousError;
+
+      const previousAccounts = new Set((previousData ?? []).map((row) => row.account_no));
+
       const { error: clearProcessedError } = await supabase
         .from('processed_accounts')
         .delete()
@@ -108,8 +116,36 @@ export default function BackOffice() {
         if (upsertError) throw upsertError;
       }
 
+      const currentAccounts = new Set(payload.map((row) => row.account_no));
+      const paidRecords = (previousData ?? []).filter((row) => !currentAccounts.has(row.account_no));
+
+      if (paidRecords.length > 0) {
+        const exportRows = paidRecords.map((row) => ({
+          户号: row.account_no,
+          户名: row.name ?? '',
+          催费电话: row.phone ?? '',
+          用电地址: row.address ?? '',
+          抄表段号: row.meter_segment ?? '',
+          欠费金额: row.arrears ?? '',
+          本月电费: row.current_fee ?? '',
+          电费总和: row.total_fee ?? '',
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(exportRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, '已付电费');
+        const arrayBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+        const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `已付电费_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+      }
+
       setImportFileName(file.name);
-      setStatus(`已导入 ${payload.length} 条记录`);
+      setStatus(`已导入 ${payload.length} 条记录${paidRecords.length > 0 ? `，已生成差户 ${paidRecords.length} 条` : ''}`);
       await refreshRecords();
     } catch (importError) {
       setStatus(importError?.message || '导入失败');
