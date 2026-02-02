@@ -12,8 +12,10 @@ export default function Home() {
     loading,
     error,
     sourceFile,
+    syncStatus,
     markProcessedOptimistic,
     unmarkProcessed,
+    flushPendingProcessed,
   } = useRecords();
   const [mode, setMode] = useState('list');
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -24,6 +26,7 @@ export default function Home() {
   const [selectedSegment, setSelectedSegment] = useState('EI35全部段号');
   const [batching, setBatching] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(() => new Set());
+  const [isDesktop, setIsDesktop] = useState(false);
 
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -65,6 +68,17 @@ export default function Home() {
     if (!batching) setSelectedBatch(new Set());
   }, [batching]);
 
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => {
+      setIsDesktop(media.matches);
+      if (media.matches) setMode('list');
+    };
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
   const toggleBatch = (record) => {
     setSelectedBatch((prev) => {
       const next = new Set(prev);
@@ -83,6 +97,7 @@ export default function Home() {
     });
     setStatus(`批量完成 ${selectedBatch.size} 条`);
     setBatching(false);
+    flushPendingProcessed();
   };
 
   const handleBatchToggleAll = () => {
@@ -112,6 +127,7 @@ export default function Home() {
 
   const currentRecord = filteredRecords[cardIndex] ?? null;
 
+
   useEffect(() => {
     if (cardIndex >= filteredRecords.length) {
       setCardIndex(Math.max(filteredRecords.length - 1, 0));
@@ -136,6 +152,7 @@ export default function Home() {
     }
     setStatus('已标记为完成');
     setSelectedRecord(null);
+    flushPendingProcessed();
   };
 
   const handleCardMark = async () => {
@@ -147,6 +164,7 @@ export default function Home() {
     }
     setCompletedStack((prev) => [...prev, currentRecord.accountNo]);
     setStatus('已标记为完成');
+    flushPendingProcessed();
   };
 
   const handleUndo = async () => {
@@ -199,20 +217,26 @@ export default function Home() {
   return (
     <section className="page">
       <div className="page-header">
-        <div>
+        <div className="title-row">
           <h1>催费工作台</h1>
+          <Link className="ghost back-link" to="/back">
+            后台入口
+          </Link>
         </div>
         <div className="header-right">
           <p className="muted">
             数据来源：{stats.sourceFile ? stats.sourceFile : '数据库导入'}，总计 {stats.total} 条，待催费 {stats.active} 条，已催费成功 {stats.asked} 条，已处理 {stats.processed} 条
           </p>
+          {syncStatus === 'syncing' && (
+            <p className="muted">离线备注同步中…</p>
+          )}
+          {syncStatus === 'error' && (
+            <p className="muted">离线备注同步失败，稍后自动重试</p>
+          )}
           {query.trim() && (
             <p className="muted search-result">搜索结果：{filteredRecords.length} 条</p>
           )}
           <div className="mode-controls">
-            <Link className="ghost back-link" to="/back">
-              后台入口
-            </Link>
             <button className="ghost" type="button" onClick={() => setBatching((prev) => !prev)}>
               {batching ? '取消批量' : '批量完成'}
             </button>
@@ -237,22 +261,24 @@ export default function Home() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <div className="mode-toggle">
-          <button
-            className={mode === 'list' ? 'active' : ''}
-            type="button"
-            onClick={() => setMode('list')}
-          >
-            列表模式
-          </button>
-          <button
-            className={mode === 'card' ? 'active' : ''}
-            type="button"
-            onClick={() => setMode('card')}
-          >
-            卡片模式
-          </button>
-          </div>
+          {!isDesktop && (
+            <div className="mode-toggle">
+              <button
+                className={mode === 'list' ? 'active' : ''}
+                type="button"
+                onClick={() => setMode('list')}
+              >
+                列表模式
+              </button>
+              <button
+                className={mode === 'card' ? 'active' : ''}
+                type="button"
+                onClick={() => setMode('card')}
+              >
+                卡片模式
+              </button>
+            </div>
+          )}
           </div>
         </div>
       </div>
@@ -263,6 +289,19 @@ export default function Home() {
 
       {!loading && !error && mode === 'list' && (
         <div className="record-list">
+          {batching && (
+            <div className="batch-bar">
+              <div>已选择 {selectedBatch.size} 条</div>
+              <div className="batch-actions">
+                <button className="ghost" type="button" onClick={handleBatchToggleAll}>
+                  {selectedBatch.size === filteredRecords.length ? '取消全选' : '全选'}
+                </button>
+                <button className="primary" type="button" onClick={handleBatchComplete}>
+                  批量标记完成
+                </button>
+              </div>
+            </div>
+          )}
           {filteredRecords.length === 0 && <div className="empty">暂无待催费记录</div>}
           {filteredRecords.map((record) => (
             <button
@@ -296,23 +335,10 @@ export default function Home() {
                 </div>
             </button>
           ))}
-          {batching && (
-            <div className="batch-footer">
-              <div>已选择 {selectedBatch.size} 条</div>
-              <div className="batch-actions">
-                <button className="ghost" type="button" onClick={handleBatchToggleAll}>
-                  {selectedBatch.size === filteredRecords.length ? '取消全选' : '全选'}
-                </button>
-                <button className="primary" type="button" onClick={handleBatchComplete}>
-                  批量标记完成
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {!loading && !error && mode === 'card' && (
+      {!loading && !error && !isDesktop && mode === 'card' && (
         <div className="card-mode">
           {filteredRecords.length === 0 ? (
             <div className="empty">暂无待催费记录</div>

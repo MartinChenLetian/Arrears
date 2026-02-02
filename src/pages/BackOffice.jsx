@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { buildAddressPattern, formatCurrency, parseNumber, safeText } from '../lib/format';
 import { useRecords } from '../context/RecordsContext';
 import { parseXlsxFile } from '../lib/xlsxLoader';
@@ -12,6 +13,50 @@ export default function BackOffice() {
   const [noteDrafts, setNoteDrafts] = useState({});
   const [importing, setImporting] = useState(false);
   const [importFileName, setImportFileName] = useState('');
+
+  const buildExportRows = (list) => {
+    return list.map((record) => {
+      const processed = processedMap[record.accountNo];
+      const done = Boolean(processed) || Boolean(record.asked);
+      return {
+        户号: record.accountNo,
+        户名: record.name,
+        抄表段号: record.meterSegment || '',
+        催费电话: record.phone,
+        地址: record.address,
+        欠费金额: record.arrears ?? '',
+        当月电费: record.currentFee ?? '',
+        合计: record.totalFee ?? '',
+        备注: processed?.note ?? '',
+        完成: done ? '✅' : '❌',
+      };
+    });
+  };
+
+  const downloadExport = (rows, filename) => {
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '催费汇总');
+    const arrayBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+    const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleExport = () => {
+    const rows = buildExportRows(filteredRecords);
+    downloadExport(rows, `催费导出_筛选_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExportAll = () => {
+    const rows = buildExportRows(records);
+    downloadExport(rows, `催费导出_全部_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const filteredRecords = useMemo(() => {
     if (!query.trim()) return records;
@@ -158,11 +203,20 @@ export default function BackOffice() {
   return (
     <section className="page">
       <div className="page-header">
-        <div>
+        <div className="title-row">
           <h1>后台标记</h1>
-          <p className="muted">在此手动标记已处理记录，主催费页将自动隐藏。</p>
+          <Link className="ghost back-link" to="/">
+            返回工作台
+          </Link>
         </div>
+        <p className="muted">在此手动标记已处理记录，主催费页将自动隐藏。</p>
         <div className="backoffice-actions">
+          <button className="ghost" type="button" onClick={handleExportAll}>
+            全量导出
+          </button>
+          <button className="ghost" type="button" onClick={handleExport}>
+            导出筛选
+          </button>
           <label className="file-upload">
             <input type="file" accept=".xlsx" onChange={handleImport} disabled={importing} />
             {importing ? '正在导入…' : '导入 xlsx'}

@@ -9,6 +9,7 @@ export function RecordsProvider({ children }) {
   const [sourceFile, setSourceFile] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [syncStatus, setSyncStatus] = useState('idle');
 
   useEffect(() => {
     let isActive = true;
@@ -31,6 +32,7 @@ export function RecordsProvider({ children }) {
     const handleFocus = () => {
       refreshRecords();
       refreshProcessed();
+      flushPendingProcessed();
     };
 
     const handleVisibility = () => {
@@ -41,10 +43,12 @@ export function RecordsProvider({ children }) {
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleFocus);
     return () => {
       isActive = false;
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleFocus);
     };
   }, []);
 
@@ -126,6 +130,32 @@ export function RecordsProvider({ children }) {
     } catch (err) {
       console.warn('Failed to persist pending processed item', err);
     }
+  }
+
+  function flushPendingProcessed() {
+    if (!hasSupabaseConfig) return;
+    let pending = [];
+    try {
+      const raw = localStorage.getItem('processed_pending');
+      pending = raw ? JSON.parse(raw) : [];
+    } catch {
+      pending = [];
+    }
+    if (!pending.length) return;
+    setSyncStatus('syncing');
+    supabase
+      .from('processed_accounts')
+      .upsert(pending, { onConflict: 'account_no' })
+      .then(({ error: upsertError }) => {
+        if (upsertError) {
+          setError(upsertError.message);
+          setSyncStatus('error');
+          return;
+        }
+        localStorage.removeItem('processed_pending');
+        setSyncStatus('ok');
+        refreshProcessed();
+      });
   }
 
   async function markProcessed(record, note) {
@@ -225,11 +255,13 @@ export function RecordsProvider({ children }) {
     sourceFile,
     loading,
     error,
+    syncStatus,
     markProcessed,
     markProcessedOptimistic,
     unmarkProcessed,
     refreshProcessed,
     refreshRecords,
+    flushPendingProcessed,
   };
 
   return <RecordsContext.Provider value={value}>{children}</RecordsContext.Provider>;
