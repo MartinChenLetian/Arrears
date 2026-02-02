@@ -96,7 +96,7 @@ export function RecordsProvider({ children }) {
     }
     const { data, error: fetchError } = await supabase
       .from('processed_accounts')
-      .select('account_no, note, processed_at');
+      .select('account_no, note, note_image, processed_at');
 
     if (fetchError) {
       setError(fetchError.message);
@@ -107,10 +107,44 @@ export function RecordsProvider({ children }) {
     (data ?? []).forEach((row) => {
       nextMap[row.account_no] = {
         note: row.note ?? '',
+        noteImage: row.note_image ?? '',
         processedAt: row.processed_at,
       };
     });
     setProcessedMap(nextMap);
+  }
+
+  function getRemarkCache() {
+    try {
+      const raw = localStorage.getItem('remark_cache');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function setRemarkCache(next) {
+    try {
+      localStorage.setItem('remark_cache', JSON.stringify(next));
+    } catch (err) {
+      console.warn('Failed to persist remark cache', err);
+    }
+  }
+
+  function saveRemarkDraft(accountNo, note, noteImage) {
+    if (!accountNo) return;
+    const cache = getRemarkCache();
+    cache[accountNo] = {
+      note: note ?? '',
+      noteImage: noteImage ?? '',
+      updatedAt: new Date().toISOString(),
+    };
+    setRemarkCache(cache);
+  }
+
+  function getRemarkDraft(accountNo) {
+    const cache = getRemarkCache();
+    return cache[accountNo] || { note: '', noteImage: '' };
   }
 
   function enqueueLocalProcessed(record, note) {
@@ -124,6 +158,7 @@ export function RecordsProvider({ children }) {
         phone: record.phone,
         address: record.address,
         note: note ?? '',
+        note_image: getRemarkDraft(record.accountNo).noteImage ?? '',
         processed_at: new Date().toISOString(),
       });
       localStorage.setItem(key, JSON.stringify(list));
@@ -168,6 +203,7 @@ export function RecordsProvider({ children }) {
       phone: record.phone,
       address: record.address,
       note: note ?? '',
+      note_image: getRemarkDraft(record.accountNo).noteImage ?? '',
       processed_at: new Date().toISOString(),
     };
 
@@ -183,6 +219,7 @@ export function RecordsProvider({ children }) {
       ...prev,
       [record.accountNo]: {
         note: note ?? '',
+        noteImage: payload.note_image ?? '',
         processedAt: payload.processed_at,
       },
     }));
@@ -190,14 +227,17 @@ export function RecordsProvider({ children }) {
     return { ok: true };
   }
 
-  function markProcessedOptimistic(record, note) {
+  function markProcessedOptimistic(record, note, noteImage) {
     if (!record?.accountNo) return { ok: false, message: '缺少户号' };
     if (!hasSupabaseConfig) return { ok: false, message: 'Supabase 未配置，请检查 .env' };
 
     const processedAt = new Date().toISOString();
+    if (note !== undefined || noteImage !== undefined) {
+      saveRemarkDraft(record.accountNo, note ?? '', noteImage ?? '');
+    }
     setProcessedMap((prev) => ({
       ...prev,
-      [record.accountNo]: { note: note ?? '', processedAt },
+      [record.accountNo]: { note: note ?? '', noteImage: noteImage ?? '', processedAt },
     }));
     enqueueLocalProcessed(record, note);
 
@@ -210,6 +250,7 @@ export function RecordsProvider({ children }) {
           phone: record.phone,
           address: record.address,
           note: note ?? '',
+          note_image: noteImage ?? getRemarkDraft(record.accountNo).noteImage ?? '',
           processed_at: processedAt,
         },
         { onConflict: 'account_no' }
@@ -262,6 +303,8 @@ export function RecordsProvider({ children }) {
     refreshProcessed,
     refreshRecords,
     flushPendingProcessed,
+    saveRemarkDraft,
+    getRemarkDraft,
   };
 
   return <RecordsContext.Provider value={value}>{children}</RecordsContext.Provider>;

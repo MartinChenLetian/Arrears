@@ -192,6 +192,7 @@ export default function BackOffice() {
       setImportFileName(file.name);
       setStatus(`已导入 ${payload.length} 条记录${paidRecords.length > 0 ? `，已生成差户 ${paidRecords.length} 条` : ''}`);
       await refreshRecords();
+      localStorage.removeItem('remark_cache');
     } catch (importError) {
       setStatus(importError?.message || '导入失败');
     } finally {

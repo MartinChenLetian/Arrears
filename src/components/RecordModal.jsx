@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatCurrency, safeText, splitPhones } from '../lib/format';
 
-export default function RecordModal({ record, isOpen, onClose, onMark, defaultNote = '' }) {
+export default function RecordModal({
+  record,
+  isOpen,
+  onClose,
+  onMark,
+  defaultNote = '',
+  defaultNoteImage = '',
+  onDraftChange,
+}) {
   const [note, setNote] = useState(defaultNote);
+  const [noteImage, setNoteImage] = useState(defaultNoteImage);
   const phones = useMemo(() => splitPhones(record?.phone), [record?.phone]);
   const [selectedPhone, setSelectedPhone] = useState(phones[0] ?? '');
   const callNumber = selectedPhone || phones[0] || '';
@@ -11,17 +20,31 @@ export default function RecordModal({ record, isOpen, onClose, onMark, defaultNo
   useEffect(() => {
     setNote(defaultNote);
     setSelectedPhone(phones[0] ?? '');
-  }, [defaultNote, phones, record?.accountNo]);
+    setNoteImage(defaultNoteImage);
+  }, [defaultNote, defaultNoteImage, phones, record?.accountNo]);
 
   if (!isOpen || !record) return null;
 
   const handleClose = () => {
     setNote(defaultNote);
+    setNoteImage(defaultNoteImage);
     onClose();
   };
 
   const handleMark = async () => {
-    await onMark?.(note);
+    await onMark?.(note, noteImage);
+  };
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      setNoteImage(result);
+      onDraftChange?.(note, result);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -85,9 +108,31 @@ export default function RecordModal({ record, isOpen, onClose, onMark, defaultNo
               type="text"
               placeholder="例如：已电话联系，约定 2 月 5 日缴费"
               value={note}
-              onChange={(event) => setNote(event.target.value)}
+              onChange={(event) => {
+                setNote(event.target.value);
+                onDraftChange?.(event.target.value, noteImage);
+              }}
             />
           </label>
+          <div className="note-upload">
+            <span className="label">备注图片</span>
+            <input type="file" accept="image/*" onChange={handleImageChange} />
+            {noteImage && (
+              <div className="note-preview">
+                <img src={noteImage} alt="备注图片" />
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => {
+                    setNoteImage('');
+                    onDraftChange?.(note, '');
+                  }}
+                >
+                  移除图片
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="modal-footer">

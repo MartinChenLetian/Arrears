@@ -16,6 +16,8 @@ export default function Home() {
     markProcessedOptimistic,
     unmarkProcessed,
     flushPendingProcessed,
+    saveRemarkDraft,
+    getRemarkDraft,
   } = useRecords();
   const [mode, setMode] = useState('list');
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -143,9 +145,9 @@ export default function Home() {
     }
   }, [filteredRecords, returnAccount]);
 
-  const handleMarkFromModal = async (note) => {
+  const handleMarkFromModal = async (note, noteImage) => {
     if (!selectedRecord) return;
-    const result = markProcessedOptimistic(selectedRecord, note);
+    const result = markProcessedOptimistic(selectedRecord, note, noteImage);
     if (!result.ok) {
       setStatus(result.message || '标记失败');
       return;
@@ -399,6 +401,12 @@ export default function Home() {
         isOpen={Boolean(selectedRecord)}
         onClose={() => setSelectedRecord(null)}
         onMark={handleMarkFromModal}
+        defaultNote={selectedRecord ? getRemarkDraft(selectedRecord.accountNo).note : ''}
+        defaultNoteImage={selectedRecord ? getRemarkDraft(selectedRecord.accountNo).noteImage : ''}
+        onDraftChange={(note, image) => {
+          if (!selectedRecord) return;
+          saveRemarkDraft(selectedRecord.accountNo, note, image);
+        }}
       />
 
       {showProcessed && (

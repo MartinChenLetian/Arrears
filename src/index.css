@@ -543,6 +543,22 @@ input {
   gap: 6px;
 }
 
+.note-upload {
+  display: grid;
+  gap: 6px;
+}
+
+.note-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.note-preview img {
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
 .note-input input,
 .search,
 .note-inline {

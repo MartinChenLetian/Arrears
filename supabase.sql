@@ -23,6 +23,7 @@ create table if not exists public.processed_accounts (
   phone text,
   address text,
   note text,
+  note_image text,
   processed_at timestamptz default now()
 );
 
