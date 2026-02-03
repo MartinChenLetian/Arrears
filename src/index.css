@@ -35,6 +35,7 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
   min-height: 100vh;
@@ -230,6 +231,86 @@ input {
   border-radius: 16px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.hotline-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.hotline-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 30;
+}
+
+.sheet {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  animation: slideUp 0.18s ease;
+}
+
+.sheet-item,
+.sheet-cancel {
+  width: 100%;
+  border: none;
+  background: var(--surface-strong);
+  color: var(--ink);
+  padding: 14px 12px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.sheet-hint {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.sheet-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.share-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.share-icon {
+  width: 22px;
+  height: 22px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .app-main {
@@ -373,6 +454,21 @@ input {
   padding: 12px 16px;
   border-radius: var(--radius-sm);
   margin-bottom: 16px;
+}
+
+.progress {
+  height: 6px;
+  background: var(--surface-strong);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
 }
 
 .status.error {

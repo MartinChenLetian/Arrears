@@ -10,6 +10,8 @@ export function RecordsProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncStatus, setSyncStatus] = useState('idle');
+  const [usingCache, setUsingCache] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   useEffect(() => {
     let isActive = true;
@@ -17,8 +19,11 @@ export function RecordsProvider({ children }) {
     async function loadAll() {
       try {
         setLoading(true);
+        setLoadProgress(10);
         await refreshRecords();
+        setLoadProgress(60);
         await refreshProcessed();
+        setLoadProgress(100);
       } catch (err) {
         if (!isActive) return;
         setError(err instanceof Error ? err.message : '加载失败');
@@ -52,19 +57,58 @@ export function RecordsProvider({ children }) {
     };
   }, []);
 
-  async function refreshRecords() {
+  function readCache(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (err) {
+      localStorage.removeItem(key);
+      return null;
+    }
+  }
+
+  function writeCache(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (err) {
+      console.warn('Failed to persist cache', err);
+    }
+  }
+
+  async function refreshRecords(force = false) {
     if (!hasSupabaseConfig) {
       setError('Supabase 未配置，请检查 .env');
       return;
     }
 
-    const { data, error: fetchError } = await supabase
-      .from('billing_records')
-      .select('account_no, name, phone, address, arrears, current_fee, total_fee, asked, meter_segment, source_file, imported_at')
-      .order('account_no', { ascending: true });
+    const isDirty = localStorage.getItem('records_dirty') === 'true';
+    const cached = readCache('records_cache');
+    if (!force && !isDirty && cached?.length) {
+      setUsingCache(true);
+      setRecords(cached);
+      const latest = cached
+        .filter((item) => item.importedAt)
+        .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
+      setSourceFile(latest?.sourceFile ?? '数据库导入');
+      return;
+    }
 
-    if (fetchError) {
-      setError(fetchError.message);
+    setUsingCache(false);
+
+    let data;
+    try {
+      const res = await supabase
+        .from('billing_records')
+        .select('account_no, name, phone, address, arrears, current_fee, total_fee, asked, meter_segment, source_file, imported_at')
+        .order('account_no', { ascending: true });
+      data = res.data;
+      if (res.error) {
+        setError(res.error.message);
+        return;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载失败');
       return;
     }
 
@@ -83,23 +127,38 @@ export function RecordsProvider({ children }) {
     }));
 
     setRecords(mapped);
+    writeCache('records_cache', mapped);
+    localStorage.removeItem('records_dirty');
     const latest = mapped
       .filter((item) => item.importedAt)
       .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
     setSourceFile(latest?.sourceFile ?? '数据库导入');
   }
 
-  async function refreshProcessed() {
+  async function refreshProcessed(force = false) {
     if (!hasSupabaseConfig) {
       setError('Supabase 未配置，请检查 .env');
       return;
     }
-    const { data, error: fetchError } = await supabase
-      .from('processed_accounts')
-      .select('account_no, note, note_images, processed_at');
+    const isDirty = localStorage.getItem('records_dirty') === 'true';
+    const cached = readCache('processed_cache');
+    if (!force && !isDirty && cached && Object.keys(cached).length) {
+      setProcessedMap(cached);
+      return;
+    }
 
-    if (fetchError) {
-      setError(fetchError.message);
+    let data;
+    try {
+      const res = await supabase
+        .from('processed_accounts')
+        .select('account_no, note, note_images, processed_at');
+      data = res.data;
+      if (res.error) {
+        setError(res.error.message);
+        return;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载失败');
       return;
     }
 
@@ -112,6 +171,7 @@ export function RecordsProvider({ children }) {
       };
     });
     setProcessedMap(nextMap);
+    writeCache('processed_cache', nextMap);
   }
 
   function getRemarkCache() {
@@ -178,9 +238,16 @@ export function RecordsProvider({ children }) {
     }
     if (!pending.length) return;
     setSyncStatus('syncing');
+    const deduped = [];
+    const seen = new Set();
+    pending.forEach((item) => {
+      if (seen.has(item.account_no)) return;
+      seen.add(item.account_no);
+      deduped.push(item);
+    });
     supabase
       .from('processed_accounts')
-      .upsert(pending, { onConflict: 'account_no' })
+      .upsert(deduped, { onConflict: 'account_no' })
       .then(({ error: upsertError }) => {
         if (upsertError) {
           setError(upsertError.message);
@@ -189,7 +256,7 @@ export function RecordsProvider({ children }) {
         }
         localStorage.removeItem('processed_pending');
         setSyncStatus('ok');
-        refreshProcessed();
+        refreshProcessed(true);
       });
   }
 
@@ -297,6 +364,7 @@ export function RecordsProvider({ children }) {
     loading,
     error,
     syncStatus,
+    loadProgress,
     markProcessed,
     markProcessedOptimistic,
     unmarkProcessed,

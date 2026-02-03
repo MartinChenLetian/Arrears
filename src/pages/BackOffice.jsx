@@ -152,16 +152,24 @@ export default function BackOffice() {
         imported_at: new Date().toISOString(),
       }));
 
+      const deduped = [];
+      const seen = new Set();
+      payload.forEach((row) => {
+        if (seen.has(row.account_no)) return;
+        seen.add(row.account_no);
+        deduped.push(row);
+      });
+
       const chunkSize = 500;
-      for (let i = 0; i < payload.length; i += chunkSize) {
-        const chunk = payload.slice(i, i + chunkSize);
+      for (let i = 0; i < deduped.length; i += chunkSize) {
+        const chunk = deduped.slice(i, i + chunkSize);
         const { error: upsertError } = await supabase
           .from('billing_records')
           .upsert(chunk, { onConflict: 'account_no' });
         if (upsertError) throw upsertError;
       }
 
-      const currentAccounts = new Set(payload.map((row) => row.account_no));
+      const currentAccounts = new Set(deduped.map((row) => row.account_no));
       const paidRecords = (previousData ?? []).filter((row) => !currentAccounts.has(row.account_no));
 
       if (paidRecords.length > 0) {
@@ -190,9 +198,12 @@ export default function BackOffice() {
       }
 
       setImportFileName(file.name);
-      setStatus(`已导入 ${payload.length} 条记录${paidRecords.length > 0 ? `，已生成差户 ${paidRecords.length} 条` : ''}`);
-      await refreshRecords();
+      setStatus(`已导入 ${deduped.length} 条记录${paidRecords.length > 0 ? `，已生成差户 ${paidRecords.length} 条` : ''}`);
+      localStorage.setItem('records_dirty', 'true');
+      localStorage.removeItem('records_cache');
+      localStorage.removeItem('processed_cache');
       localStorage.removeItem('remark_cache');
+      await refreshRecords(true);
     } catch (importError) {
       setStatus(importError?.message || '导入失败');
     } finally {

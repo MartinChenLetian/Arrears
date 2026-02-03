@@ -6,6 +6,8 @@ export default function Header() {
   const [showHotline, setShowHotline] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [isForced, setIsForced] = useState(false);
+  const [showImageActions, setShowImageActions] = useState(false);
+  const [shareHint, setShareHint] = useState('');
 
   useEffect(() => {
     const applyTheme = (value) => {
@@ -152,14 +154,99 @@ export default function Header() {
                 <h2>服务热线</h2>
                 <p className="muted">点击图片可保存或放大查看</p>
               </div>
-              <button className="ghost" type="button" onClick={() => setShowHotline(false)}>
-                <span className="text-full">关闭</span>
-                <span className="text-short">关</span>
+              <button
+                className="ghost share-btn"
+                type="button"
+                aria-label="分享"
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/hotline.jpg');
+                    const blob = await res.blob();
+                    const file = new File([blob], 'hotline.jpg', { type: blob.type || 'image/jpeg' });
+                    if (navigator.share) {
+                      if (navigator.canShare?.({ files: [file] })) {
+                        await navigator.share({ files: [file], title: '服务热线' });
+                      } else {
+                        await navigator.share({ title: '服务热线', url: '/hotline.jpg' });
+                      }
+                    } else {
+                      await navigator.share({ title: '服务热线', url: '/hotline.jpg' });
+                    }
+                  } finally {
+                    setShowHotline(false);
+                  }
+                }}
+              >
+                <svg className="share-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 3l4 4h-3v6h-2V7H8l4-4zm-6 9h2v6h8v-6h2v8H6v-8z"
+                    fill="currentColor"
+                  />
+                </svg>
               </button>
             </div>
             <div className="modal-body">
-              <img className="hotline-image" src="/hotline.jpg" alt="服务热线" />
+              <div className="hotline-wrap">
+                <img className="hotline-image" src="/hotline.jpg" alt="服务热线" />
+                <div className="hotline-overlay" aria-hidden="true" />
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showImageActions && (
+        <div className="sheet-backdrop" onClick={() => setShowImageActions(false)}>
+          <div className="sheet" onClick={(event) => event.stopPropagation()}>
+            <button
+              className="sheet-item"
+              type="button"
+              onClick={() => {
+                (async () => {
+                  try {
+                    setShareHint('');
+                    if (navigator.share) {
+                      const res = await fetch('/hotline.jpg');
+                      const blob = await res.blob();
+                      const file = new File([blob], 'hotline.jpg', { type: blob.type || 'image/jpeg' });
+                      if (navigator.canShare?.({ files: [file] })) {
+                        await navigator.share({ files: [file], title: '服务热线' });
+                      } else {
+                        await navigator.share({ title: '服务热线', url: '/hotline.jpg' });
+                      }
+                    } else {
+                      setShareHint('当前浏览器不支持系统保存，请长按图片保存');
+                    }
+                  } finally {
+                    setShowImageActions(false);
+                  }
+                })();
+              }}
+            >
+              保存图片
+            </button>
+            <button
+              className="sheet-item"
+              type="button"
+              onClick={async () => {
+                try {
+                  setShareHint('');
+                  if (navigator.share) {
+                    await navigator.share({ title: '服务热线', url: '/hotline.jpg' });
+                  } else {
+                    setShareHint('当前浏览器不支持系统分享，请长按图片保存');
+                  }
+                } finally {
+                  setShowImageActions(false);
+                }
+              }}
+            >
+              转发
+            </button>
+            {shareHint && <div className="sheet-hint">{shareHint}</div>}
+            <button className="sheet-cancel" type="button" onClick={() => setShowImageActions(false)}>
+              取消
+            </button>
           </div>
         </div>
       )}

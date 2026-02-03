@@ -13,6 +13,7 @@ export default function Home() {
     error,
     sourceFile,
     syncStatus,
+    loadProgress,
     markProcessedOptimistic,
     unmarkProcessed,
     flushPendingProcessed,
@@ -29,6 +30,7 @@ export default function Home() {
   const [batching, setBatching] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(() => new Set());
   const [isDesktop, setIsDesktop] = useState(false);
+  const [restored, setRestored] = useState(false);
 
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -69,6 +71,38 @@ export default function Home() {
   useEffect(() => {
     if (!batching) setSelectedBatch(new Set());
   }, [batching]);
+
+  useEffect(() => {
+    if (restored) return;
+    try {
+      const raw = localStorage.getItem('home_state');
+      if (raw) {
+        const state = JSON.parse(raw);
+        if (typeof state.query === 'string') setQuery(state.query);
+        if (typeof state.selectedSegment === 'string') setSelectedSegment(state.selectedSegment);
+        if (typeof state.mode === 'string') setMode(state.mode);
+        if (typeof state.batching === 'boolean') setBatching(state.batching);
+      }
+    } catch {
+      localStorage.removeItem('home_state');
+    }
+    setRestored(true);
+  }, [restored]);
+
+  useEffect(() => {
+    if (!restored) return;
+    const payload = {
+      query,
+      selectedSegment,
+      mode,
+      batching,
+    };
+    try {
+      localStorage.setItem('home_state', JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [query, selectedSegment, mode, batching, restored]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
@@ -291,7 +325,14 @@ export default function Home() {
       </div>
 
       {status && <div className="status">{status}</div>}
-      {loading && <div className="status">正在加载数据…</div>}
+      {loading && (
+        <div className="status">
+          <div>正在加载数据…</div>
+          <div className="progress">
+            <div className="progress-bar" style={{ width: `${loadProgress}%` }} />
+          </div>
+        </div>
+      )}
       {error && <div className="status error">{error}</div>}
 
       {!loading && !error && mode === 'list' && (
