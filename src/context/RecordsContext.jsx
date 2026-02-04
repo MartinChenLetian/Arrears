@@ -106,6 +106,16 @@ export function RecordsProvider({ children }) {
     }
   }
 
+  function getDatasetKeyFromRecords(list) {
+    if (!Array.isArray(list) || list.length === 0) return '';
+    const latest = list
+      .filter((item) => item.importedAt)
+      .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
+    const source = latest?.sourceFile ?? '';
+    const time = latest?.importedAt ?? '';
+    return `${source}::${time}`;
+  }
+
   async function refreshRecords(force = false) {
     if (!hasSupabaseConfig) {
       setError('Supabase 未配置，请检查 .env');
@@ -122,6 +132,8 @@ export function RecordsProvider({ children }) {
         .filter((item) => item.importedAt)
         .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
       setSourceFile(latest?.sourceFile ?? '数据库导入');
+      const key = getDatasetKeyFromRecords(cached);
+      if (key) localStorage.setItem('dataset_key', key);
       return;
     }
 
@@ -176,6 +188,8 @@ export function RecordsProvider({ children }) {
       .filter((item) => item.importedAt)
       .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
     setSourceFile(latest?.sourceFile ?? '数据库导入');
+    const key = getDatasetKeyFromRecords(mapped);
+    if (key) localStorage.setItem('dataset_key', key);
   }
 
   async function refreshProcessed(force = false) {
@@ -185,12 +199,14 @@ export function RecordsProvider({ children }) {
     }
     const isDirty = localStorage.getItem('records_dirty') === 'true';
     const cached = readCache('processed_cache');
+    const datasetKey = localStorage.getItem('dataset_key') || '';
+    const cachedKey = localStorage.getItem('processed_cache_key') || '';
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-    if (!force && !isDirty && cached && Object.keys(cached).length) {
+    if (!force && !isDirty && cached && Object.keys(cached).length && cachedKey === datasetKey) {
       setProcessedMap(cached);
       return;
     }
-    if (!isOnline && cached && Object.keys(cached).length) {
+    if (!isOnline && cached && Object.keys(cached).length && cachedKey === datasetKey) {
       setProcessedMap(cached);
       return;
     }
@@ -221,6 +237,7 @@ export function RecordsProvider({ children }) {
     });
     setProcessedMap(nextMap);
     writeCache('processed_cache', nextMap);
+    if (datasetKey) localStorage.setItem('processed_cache_key', datasetKey);
   }
 
   function getRemarkCache() {

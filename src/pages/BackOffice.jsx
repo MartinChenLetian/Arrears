@@ -124,7 +124,7 @@ export default function BackOffice() {
       }
       const { data, error } = await supabase.storage
         .from(NOTE_BUCKET)
-        .createSignedUrls(paths, 3600);
+        .createSignedUrls(paths, 2592000);
       if (error || !data) {
         updated.push(row);
         continue;
