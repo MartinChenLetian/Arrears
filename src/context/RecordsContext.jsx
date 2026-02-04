@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { hasSupabaseConfig, supabase } from '../lib/supabase';
+import { hasSupabaseConfig, NOTE_BUCKET, supabase } from '../lib/supabase';
 
 const RecordsContext = createContext(null);
 
@@ -20,9 +20,16 @@ export function RecordsProvider({ children }) {
       try {
         setLoading(true);
         setLoadProgress(10);
-        await refreshRecords();
+        const hasCache = hydrateFromCache();
+        const isDirty = localStorage.getItem('records_dirty') === 'true';
+        if (hasCache && !isDirty) {
+          setLoadProgress(100);
+          setLoading(false);
+          return;
+        }
+        await refreshRecords(true);
         setLoadProgress(60);
-        await refreshProcessed();
+        await refreshProcessed(true);
         setLoadProgress(100);
       } catch (err) {
         if (!isActive) return;
@@ -35,8 +42,11 @@ export function RecordsProvider({ children }) {
     loadAll();
 
     const handleFocus = () => {
-      refreshRecords();
-      refreshProcessed();
+      const isDirty = localStorage.getItem('records_dirty') === 'true';
+      if (isDirty) {
+        refreshRecords(true);
+        refreshProcessed(true);
+      }
       flushPendingProcessed();
     };
 
@@ -56,6 +66,26 @@ export function RecordsProvider({ children }) {
       window.removeEventListener('online', handleFocus);
     };
   }, []);
+
+  function hydrateFromCache() {
+    const cachedRecords = readCache('records_cache');
+    const cachedProcessed = readCache('processed_cache');
+    let has = false;
+    if (Array.isArray(cachedRecords) && cachedRecords.length) {
+      setRecords(cachedRecords);
+      const latest = cachedRecords
+        .filter((item) => item.importedAt)
+        .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
+      setSourceFile(latest?.sourceFile ?? '数据库导入');
+      has = true;
+    }
+    if (cachedProcessed && Object.keys(cachedProcessed).length) {
+      setProcessedMap(cachedProcessed);
+      has = true;
+    }
+    if (has) setUsingCache(true);
+    return has;
+  }
 
   function readCache(key) {
     try {
@@ -84,7 +114,18 @@ export function RecordsProvider({ children }) {
 
     const isDirty = localStorage.getItem('records_dirty') === 'true';
     const cached = readCache('records_cache');
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (!force && !isDirty && cached?.length) {
+      setUsingCache(true);
+      setRecords(cached);
+      const latest = cached
+        .filter((item) => item.importedAt)
+        .sort((a, b) => String(b.importedAt).localeCompare(String(a.importedAt)))[0];
+      setSourceFile(latest?.sourceFile ?? '数据库导入');
+      return;
+    }
+
+    if (!isOnline && cached?.length) {
       setUsingCache(true);
       setRecords(cached);
       const latest = cached
@@ -108,7 +149,9 @@ export function RecordsProvider({ children }) {
         return;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
+      if (!cached?.length) {
+        setError(err instanceof Error ? err.message : '加载失败');
+      }
       return;
     }
 
@@ -142,7 +185,12 @@ export function RecordsProvider({ children }) {
     }
     const isDirty = localStorage.getItem('records_dirty') === 'true';
     const cached = readCache('processed_cache');
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (!force && !isDirty && cached && Object.keys(cached).length) {
+      setProcessedMap(cached);
+      return;
+    }
+    if (!isOnline && cached && Object.keys(cached).length) {
       setProcessedMap(cached);
       return;
     }
@@ -151,7 +199,7 @@ export function RecordsProvider({ children }) {
     try {
       const res = await supabase
         .from('processed_accounts')
-        .select('account_no, note, note_images, processed_at');
+        .select('account_no, note, note_images, note_image_urls, processed_at');
       data = res.data;
       if (res.error) {
         setError(res.error.message);
@@ -167,6 +215,7 @@ export function RecordsProvider({ children }) {
       nextMap[row.account_no] = {
         note: row.note ?? '',
         noteImages: Array.isArray(row.note_images) ? row.note_images : [],
+        noteImageUrls: Array.isArray(row.note_image_urls) ? row.note_image_urls : [],
         processedAt: row.processed_at,
       };
     });
@@ -191,12 +240,13 @@ export function RecordsProvider({ children }) {
     }
   }
 
-  function saveRemarkDraft(accountNo, note, noteImages) {
+  function saveRemarkDraft(accountNo, note, noteImages, noteImageUrls) {
     if (!accountNo) return;
     const cache = getRemarkCache();
     cache[accountNo] = {
       note: note ?? '',
       noteImages: Array.isArray(noteImages) ? noteImages : [],
+      noteImageUrls: Array.isArray(noteImageUrls) ? noteImageUrls : [],
       updatedAt: new Date().toISOString(),
     };
     setRemarkCache(cache);
@@ -204,7 +254,7 @@ export function RecordsProvider({ children }) {
 
   function getRemarkDraft(accountNo) {
     const cache = getRemarkCache();
-    return cache[accountNo] || { note: '', noteImages: [] };
+    return cache[accountNo] || { note: '', noteImages: [], noteImageUrls: [] };
   }
 
   function enqueueLocalProcessed(record, note) {
@@ -219,6 +269,7 @@ export function RecordsProvider({ children }) {
         address: record.address,
         note: note ?? '',
         note_images: getRemarkDraft(record.accountNo).noteImages ?? [],
+        note_image_urls: getRemarkDraft(record.accountNo).noteImageUrls ?? [],
         processed_at: new Date().toISOString(),
       });
       localStorage.setItem(key, JSON.stringify(list));
@@ -229,6 +280,7 @@ export function RecordsProvider({ children }) {
 
   function flushPendingProcessed() {
     if (!hasSupabaseConfig) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     let pending = [];
     try {
       const raw = localStorage.getItem('processed_pending');
@@ -271,6 +323,7 @@ export function RecordsProvider({ children }) {
       address: record.address,
       note: note ?? '',
       note_images: getRemarkDraft(record.accountNo).noteImages ?? [],
+      note_image_urls: getRemarkDraft(record.accountNo).noteImageUrls ?? [],
       processed_at: new Date().toISOString(),
     };
 
@@ -287,6 +340,7 @@ export function RecordsProvider({ children }) {
       [record.accountNo]: {
         note: note ?? '',
         noteImages: payload.note_images ?? [],
+        noteImageUrls: payload.note_image_urls ?? [],
         processedAt: payload.processed_at,
       },
     }));
@@ -294,17 +348,22 @@ export function RecordsProvider({ children }) {
     return { ok: true };
   }
 
-  function markProcessedOptimistic(record, note, noteImages) {
+  function markProcessedOptimistic(record, note, noteImages, noteImageUrls) {
     if (!record?.accountNo) return { ok: false, message: '缺少户号' };
     if (!hasSupabaseConfig) return { ok: false, message: 'Supabase 未配置，请检查 .env' };
 
     const processedAt = new Date().toISOString();
-    if (note !== undefined || noteImages !== undefined) {
-      saveRemarkDraft(record.accountNo, note ?? '', noteImages ?? []);
+    if (note !== undefined || noteImages !== undefined || noteImageUrls !== undefined) {
+      saveRemarkDraft(record.accountNo, note ?? '', noteImages ?? [], noteImageUrls ?? []);
     }
     setProcessedMap((prev) => ({
       ...prev,
-      [record.accountNo]: { note: note ?? '', noteImages: noteImages ?? [], processedAt },
+      [record.accountNo]: {
+        note: note ?? '',
+        noteImages: noteImages ?? [],
+        noteImageUrls: noteImageUrls ?? [],
+        processedAt,
+      },
     }));
     enqueueLocalProcessed(record, note);
 
@@ -318,6 +377,7 @@ export function RecordsProvider({ children }) {
           address: record.address,
           note: note ?? '',
           note_images: noteImages ?? getRemarkDraft(record.accountNo).noteImages ?? [],
+          note_image_urls: noteImageUrls ?? getRemarkDraft(record.accountNo).noteImageUrls ?? [],
           processed_at: processedAt,
         },
         { onConflict: 'account_no' }
@@ -326,7 +386,48 @@ export function RecordsProvider({ children }) {
         if (upsertError) setError(upsertError.message);
       });
 
+    if (noteImages?.length) {
+      uploadNoteImages(record.accountNo, noteImages).then((urls) => {
+        if (!urls.length) return;
+        setProcessedMap((prev) => ({
+          ...prev,
+          [record.accountNo]: {
+            ...(prev[record.accountNo] ?? { note: note ?? '', noteImages: noteImages ?? [] }),
+            noteImageUrls: urls,
+            processedAt,
+          },
+        }));
+        saveRemarkDraft(record.accountNo, note ?? '', noteImages ?? [], urls);
+        supabase.from('processed_accounts').update({ note_image_urls: urls }).eq('account_no', record.accountNo);
+      });
+    }
+
     return { ok: true };
+  }
+
+  async function uploadNoteImages(accountNo, noteImages) {
+    if (!accountNo || !noteImages?.length) return [];
+    const uploads = await Promise.all(
+      noteImages.map(async (img, idx) => {
+        if (typeof img === 'string' && !img.startsWith('data:')) {
+          return img;
+        }
+        try {
+          const res = await fetch(img);
+          const blob = await res.blob();
+          const ext = blob.type.split('/')[1] || 'jpg';
+          const path = `${accountNo}/${Date.now()}_${idx}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from(NOTE_BUCKET)
+            .upload(path, blob, { upsert: true, contentType: blob.type });
+          if (uploadError) return '';
+          return path;
+        } catch {
+          return '';
+        }
+      })
+    );
+    return uploads.filter(Boolean);
   }
 
   async function unmarkProcessed(accountNo) {

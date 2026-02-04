@@ -10,3 +10,4 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase = createClient(supabaseUrl ?? '', supabaseKey ?? '');
+export const NOTE_BUCKET = 'note-images';

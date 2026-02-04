@@ -62,6 +62,15 @@ export default function Header() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('hotline_open');
+      if (raw === 'true') setShowHotline(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const forceToggleTheme = () => {
     const next = !isDark;
     const now = new Date();
@@ -140,14 +149,27 @@ export default function Header() {
           </span>
         </div>
         <nav className="header-actions">
-          <button className="hotline-btn" type="button" onClick={() => setShowHotline(true)}>
+          <button
+            className="hotline-btn"
+            type="button"
+            onClick={() => {
+              setShowHotline(true);
+              localStorage.setItem('hotline_open', 'true');
+            }}
+          >
             <span className="text-full">服务热线</span>
             <span className="text-short">热线</span>
           </button>
         </nav>
       </header>
       {showHotline && (
-        <div className="modal-backdrop" onClick={() => setShowHotline(false)}>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            setShowHotline(false);
+            localStorage.setItem('hotline_open', 'false');
+          }}
+        >
           <div className="modal hotline-modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>
@@ -174,6 +196,7 @@ export default function Header() {
                     }
                   } finally {
                     setShowHotline(false);
+                    localStorage.setItem('hotline_open', 'false');
                   }
                 }}
               >

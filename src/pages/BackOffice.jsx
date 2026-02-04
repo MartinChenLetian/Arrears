@@ -4,7 +4,7 @@ import { buildAddressPattern, formatCurrency, parseNumber, safeText } from '../l
 import { useRecords } from '../context/RecordsContext';
 import { parseXlsxFile } from '../lib/xlsxLoader';
 import * as XLSX from 'xlsx';
-import { hasSupabaseConfig, supabase } from '../lib/supabase';
+import { NOTE_BUCKET, hasSupabaseConfig, supabase } from '../lib/supabase';
 
 export default function BackOffice() {
   const { records, processedMap, loading, error, markProcessed, unmarkProcessed, refreshRecords } = useRecords();
@@ -13,11 +13,47 @@ export default function BackOffice() {
   const [noteDrafts, setNoteDrafts] = useState({});
   const [importing, setImporting] = useState(false);
   const [importFileName, setImportFileName] = useState('');
+  const [migrating, setMigrating] = useState(false);
+  const [migrateProgress, setMigrateProgress] = useState({ total: 0, done: 0 });
 
-  const buildExportRows = (list) => {
+  const loadMigrateState = () => {
+    try {
+      const raw = localStorage.getItem('migrate_state');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      localStorage.removeItem('migrate_state');
+      return null;
+    }
+  };
+
+  const saveMigrateState = (state) => {
+    try {
+      localStorage.setItem('migrate_state', JSON.stringify(state));
+    } catch {
+      // ignore
+    }
+  };
+
+  const clearMigrateState = () => {
+    localStorage.removeItem('migrate_state');
+  };
+
+  const buildExportRows = (list, urlMap = {}) => {
     return list.map((record) => {
       const processed = processedMap[record.accountNo];
       const done = Boolean(processed) || Boolean(record.asked);
+      const paths = Array.isArray(urlMap[record.accountNo])
+        ? urlMap[record.accountNo]
+        : Array.isArray(processed?.noteImageUrls)
+          ? processed.noteImageUrls
+          : [];
+      const rawImageText = paths.length
+        ? paths.map((path) => `private:${path}`).join('\n')
+        : '';
+      const imageText =
+        rawImageText.length > 30000
+          ? `链接过长未导出（${urls.length} 张）`
+          : rawImageText;
       return {
         户号: record.accountNo,
         户名: record.name,
@@ -28,6 +64,8 @@ export default function BackOffice() {
         当月电费: record.currentFee ?? '',
         合计: record.totalFee ?? '',
         备注: processed?.note ?? '',
+        照片数量: paths.length,
+        备注照片: imageText,
         完成: done ? '✅' : '❌',
       };
     });
@@ -48,14 +86,141 @@ export default function BackOffice() {
     URL.revokeObjectURL(link.href);
   };
 
-  const handleExport = () => {
-    const rows = buildExportRows(filteredRecords);
-    downloadExport(rows, `催费导出_筛选_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const fetchNoteUrls = async (accountNos) => {
+    if (!accountNos.length) return {};
+    const map = {};
+    const chunkSize = 200;
+    for (let i = 0; i < accountNos.length; i += chunkSize) {
+      const chunk = accountNos.slice(i, i + chunkSize);
+      const { data, error } = await supabase
+        .from('processed_accounts')
+        .select('account_no, note_image_urls')
+        .in('account_no', chunk);
+      if (error) continue;
+      (data ?? []).forEach((row) => {
+        if (Array.isArray(row.note_image_urls)) {
+          map[row.account_no] = row.note_image_urls;
+        }
+      });
+    }
+    return map;
   };
 
-  const handleExportAll = () => {
-    const rows = buildExportRows(records);
-    downloadExport(rows, `催费导出_全部_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const enrichWithSignedUrls = async (rows) => {
+    const updated = [];
+    for (const row of rows) {
+      const raw = row['备注照片'] || '';
+      if (!raw || typeof raw !== 'string') {
+        updated.push(row);
+        continue;
+      }
+      const paths = raw
+        .split('\n')
+        .map((item) => item.replace(/^private:/, '').trim())
+        .filter(Boolean);
+      if (!paths.length) {
+        updated.push(row);
+        continue;
+      }
+      const { data, error } = await supabase.storage
+        .from(NOTE_BUCKET)
+        .createSignedUrls(paths, 3600);
+      if (error || !data) {
+        updated.push(row);
+        continue;
+      }
+      const signed = data.map((item) => item.signedUrl).filter(Boolean);
+      updated.push({
+        ...row,
+        备注照片: signed.join('\n'),
+      });
+    }
+    return updated;
+  };
+
+  const handleExport = async () => {
+    const urlMap = await fetchNoteUrls(filteredRecords.map((r) => r.accountNo));
+    const rows = buildExportRows(filteredRecords, urlMap);
+    const withUrls = await enrichWithSignedUrls(rows);
+    downloadExport(withUrls, `催费导出_筛选_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExportAll = async () => {
+    const urlMap = await fetchNoteUrls(records.map((r) => r.accountNo));
+    const rows = buildExportRows(records, urlMap);
+    const withUrls = await enrichWithSignedUrls(rows);
+    downloadExport(withUrls, `催费导出_全部_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleMigrateImages = async () => {
+    if (!hasSupabaseConfig) {
+      setStatus('Supabase 未配置，请检查 .env');
+      return;
+    }
+    setMigrating(true);
+    setStatus('');
+    try {
+      const { data, error } = await supabase
+        .from('processed_accounts')
+        .select('account_no, note_images, note_image_urls')
+        .not('note_images', 'is', null);
+      if (error) throw error;
+
+      const rows = (data ?? []).filter(
+        (row) => Array.isArray(row.note_images) && row.note_images.length > 0
+      );
+      const resume = loadMigrateState();
+      const total = rows.reduce((sum, row) => sum + (row.note_images?.length || 0), 0);
+      const doneBase = rows.reduce((sum, row) => sum + (row.note_image_urls?.length || 0), 0);
+      setMigrateProgress({ total, done: doneBase });
+
+      for (let r = 0; r < rows.length; r += 1) {
+        const row = rows[r];
+        const accountNo = row.account_no;
+        const images = Array.isArray(row.note_images) ? row.note_images : [];
+        if (!accountNo || images.length === 0) continue;
+
+        const existingUrls = Array.isArray(row.note_image_urls) ? row.note_image_urls : [];
+        let startIdx = 0;
+        if (resume?.accountNo === accountNo && Number.isInteger(resume.imgIndex)) {
+          startIdx = resume.imgIndex;
+        }
+
+        const urls = [...existingUrls];
+        for (let i = startIdx; i < images.length; i += 1) {
+          const img = images[i];
+          if (!img || typeof img !== 'string') continue;
+          if (!img.startsWith('data:')) {
+            if (!urls.includes(img)) urls.push(img);
+            continue;
+          }
+          const res = await fetch(img);
+          const blob = await res.blob();
+          const ext = blob.type.split('/')[1] || 'jpg';
+          const path = `${accountNo}/${Date.now()}_${i}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from(NOTE_BUCKET)
+            .upload(path, blob, { upsert: true, contentType: blob.type });
+          if (uploadError) throw uploadError;
+          urls.push(path);
+          setMigrateProgress((prev) => ({ total: prev.total, done: prev.done + 1 }));
+          saveMigrateState({ accountNo, imgIndex: i + 1 });
+        }
+
+        await supabase
+          .from('processed_accounts')
+          .update({ note_image_urls: urls, note_images: [] })
+          .eq('account_no', accountNo);
+        saveMigrateState({ accountNo: '', imgIndex: 0 });
+      }
+
+      clearMigrateState();
+      setStatus('迁移完成（私有桶路径已写入，旧图片已清空）');
+    } catch (err) {
+      setStatus(err?.message || '迁移失败');
+    } finally {
+      setMigrating(false);
+    }
   };
 
   const filteredRecords = useMemo(() => {
@@ -224,6 +389,10 @@ export default function BackOffice() {
         </div>
         <p className="muted">在此手动标记已处理记录，主催费页将自动隐藏。</p>
         <div className="backoffice-actions">
+          <button className="ghost" type="button" onClick={handleMigrateImages} disabled={migrating}>
+            <span className="text-full">{migrating ? '迁移中…' : '迁移历史图片'}</span>
+            <span className="text-short">{migrating ? '迁移中' : '迁移'}</span>
+          </button>
           <button className="ghost" type="button" onClick={handleExportAll}>
             <span className="text-full">全量导出</span>
             <span className="text-short">全量</span>
@@ -248,6 +417,21 @@ export default function BackOffice() {
       </div>
 
       {status && <div className="status">{status}</div>}
+      {migrating && (
+        <div className="status">
+          <div>迁移图片中… {migrateProgress.done}/{migrateProgress.total}</div>
+          <div className="progress">
+            <div
+              className="progress-bar"
+              style={{
+                width: migrateProgress.total
+                  ? `${Math.round((migrateProgress.done / migrateProgress.total) * 100)}%`
+                  : '0%',
+              }}
+            />
+          </div>
+        </div>
+      )}
       {importFileName && (
         <div className="status">最近导入：{importFileName}</div>
       )}

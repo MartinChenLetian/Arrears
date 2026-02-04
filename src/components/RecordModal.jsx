@@ -28,6 +28,11 @@ export default function RecordModal({
   const handleClose = () => {
     setNote(defaultNote);
     setNoteImages(defaultNoteImages);
+    try {
+      localStorage.setItem('modal_state', JSON.stringify({ open: false }));
+    } catch {
+      // ignore
+    }
     onClose();
   };
 
@@ -45,6 +50,19 @@ export default function RecordModal({
       const next = [...noteImages, result].slice(0, 5);
       setNoteImages(next);
       onDraftChange?.(note, next);
+      try {
+        localStorage.setItem(
+          'modal_state',
+          JSON.stringify({
+            open: true,
+            accountNo: record?.accountNo ?? '',
+            note,
+            noteImages: next,
+          })
+        );
+      } catch {
+        // ignore
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -113,7 +131,20 @@ export default function RecordModal({
               value={note}
               onChange={(event) => {
                 setNote(event.target.value);
-                onDraftChange?.(event.target.value, noteImage);
+                onDraftChange?.(event.target.value, noteImages);
+                try {
+                  localStorage.setItem(
+                    'modal_state',
+                    JSON.stringify({
+                      open: true,
+                      accountNo: record?.accountNo ?? '',
+                      note: event.target.value,
+                      noteImages,
+                    })
+                  );
+                } catch {
+                  // ignore
+                }
               }}
             />
           </label>

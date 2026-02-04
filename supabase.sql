@@ -24,6 +24,7 @@ create table if not exists public.processed_accounts (
   address text,
   note text,
   note_images jsonb,
+  note_image_urls jsonb,
   processed_at timestamptz default now()
 );
 

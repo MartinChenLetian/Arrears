@@ -31,6 +31,7 @@ export default function Home() {
   const [selectedBatch, setSelectedBatch] = useState(() => new Set());
   const [isDesktop, setIsDesktop] = useState(false);
   const [restored, setRestored] = useState(false);
+  const [pendingSelectedAccount, setPendingSelectedAccount] = useState('');
 
   const [cardIndex, setCardIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
@@ -82,12 +83,61 @@ export default function Home() {
         if (typeof state.selectedSegment === 'string') setSelectedSegment(state.selectedSegment);
         if (typeof state.mode === 'string') setMode(state.mode);
         if (typeof state.batching === 'boolean') setBatching(state.batching);
+        if (typeof state.showProcessed === 'boolean') setShowProcessed(state.showProcessed);
+        if (typeof state.processedQuery === 'string') setProcessedQuery(state.processedQuery);
+        if (Array.isArray(state.selectedBatch)) {
+          setSelectedBatch(new Set(state.selectedBatch));
+        }
+        if (typeof state.selectedRecord === 'string') {
+          setPendingSelectedAccount(state.selectedRecord);
+        }
+      }
+      const modalRaw = localStorage.getItem('modal_state');
+      if (modalRaw) {
+        const modalState = JSON.parse(modalRaw);
+        if (modalState?.open && typeof modalState.accountNo === 'string') {
+          if (typeof modalState.note === 'string' || Array.isArray(modalState.noteImages)) {
+            saveRemarkDraft(
+              modalState.accountNo,
+              modalState.note ?? '',
+              Array.isArray(modalState.noteImages) ? modalState.noteImages : []
+            );
+          }
+          setPendingSelectedAccount(modalState.accountNo);
+        }
       }
     } catch {
       localStorage.removeItem('home_state');
     }
     setRestored(true);
-  }, [restored]);
+  }, [restored, records]);
+
+  useEffect(() => {
+    if (!pendingSelectedAccount) return;
+    if (selectedRecord?.accountNo === pendingSelectedAccount) return;
+    const record = records.find((item) => item.accountNo === pendingSelectedAccount);
+    if (record) {
+      setSelectedRecord(record);
+      setPendingSelectedAccount('');
+    }
+  }, [pendingSelectedAccount, records, selectedRecord]);
+
+  useEffect(() => {
+    if (!selectedRecord) return;
+    try {
+      localStorage.setItem(
+        'modal_state',
+        JSON.stringify({
+          open: true,
+          accountNo: selectedRecord.accountNo,
+          note: getRemarkDraft(selectedRecord.accountNo).note ?? '',
+          noteImages: getRemarkDraft(selectedRecord.accountNo).noteImages ?? [],
+        })
+      );
+    } catch {
+      // ignore
+    }
+  }, [selectedRecord, getRemarkDraft]);
 
   useEffect(() => {
     if (!restored) return;
@@ -96,13 +146,17 @@ export default function Home() {
       selectedSegment,
       mode,
       batching,
+      showProcessed,
+      processedQuery,
+      selectedRecord: selectedRecord?.accountNo ?? '',
+      selectedBatch: Array.from(selectedBatch),
     };
     try {
       localStorage.setItem('home_state', JSON.stringify(payload));
     } catch {
       // ignore
     }
-  }, [query, selectedSegment, mode, batching, restored]);
+  }, [query, selectedSegment, mode, batching, showProcessed, processedQuery, selectedRecord, selectedBatch, restored]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
