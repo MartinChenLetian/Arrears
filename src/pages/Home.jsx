@@ -43,7 +43,7 @@ export default function Home() {
 
   const stats = useMemo(() => {
     const askedCount = records.filter((record) => record.asked).length;
-    const processedCount = Object.keys(processedMap).length;
+    const processedCount = records.filter((record) => processedMap[record.accountNo]).length;
     return {
       total: records.length,
       active: activeRecords.length,
